@@ -2,9 +2,9 @@
 
 Get dataset from the commiter. Put it under the root path. 
 
-The CNN text classification training and model code is in cnn-text-classification-tf folder. 
+Go to process folder, use generate_file_labels_medication.py to generate samples and labels files. 
 
-To train, go to cnn-text-classification-tf folder, run "python train-medication.py". It will train the model and generate validation / test results as well. 
+Then go to cnn-text-classification-tf folder which contains the CNN text classification training and model codes. 
 
-Process folder contains files to process the dataset, such as extracting samples from the dataset, assigning labels to each sample. 
+Run "python train-medication.py", which will train the model and generate validation / test results.
 
