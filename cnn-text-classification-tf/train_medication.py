@@ -1,9 +1,11 @@
 #! /usr/bin/env python
 import os, time, glob, pickle, sys, math
-os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import tensorflow as tf, numpy as np, scipy.io as io
 from tensorflow.contrib import learn
 from sklearn.metrics import accuracy_score, jaccard_similarity_score, hamming_loss
+
 sys.path.append('../')
 import preprocess_mimiciii
 from text_cnn_deep import TextCNNDeep
@@ -26,7 +28,8 @@ tf.flags.DEFINE_string("load_traindata_file", '../medication_output/traindata', 
 tf.flags.DEFINE_string("task", "medication", "")
 tf.flags.DEFINE_integer("multilabel", 1, "softmax or sigmoid")
 tf.flags.DEFINE_string("dataset_dir", '../', "")
-tf.flags.DEFINE_integer("max_doc_len", None, "The maximum number of words in a document, each word is transformed to an integer in vector representation.")
+tf.flags.DEFINE_integer("max_doc_len", None,
+                        "The maximum number of words in a document, each word is transformed to an integer in vector representation.")
 tf.flags.DEFINE_string("log_dir", 'logs/', "")
 tf.flags.DEFINE_string("features_dir", 'features', "")
 tf.flags.DEFINE_integer("save_features", 0, "")
@@ -61,8 +64,10 @@ for attr, value in sorted(FLAGS.__flags.items()):
     print("{}={}".format(attr.upper(), value))
 print("")
 
+
 def logitics(x):
     return math.exp(-np.logaddexp(0, -x))
+
 
 def get_prediction_sigmoid(scores, threshold=0.5):
     predictions = np.zeros_like(scores)
@@ -74,8 +79,10 @@ def get_prediction_sigmoid(scores, threshold=0.5):
                 predictions[row][col] = 0
     return predictions
 
+
 def get_prediction_softmax(scores):
     return np.argmax(scores, axis=1)
+
 
 def compute_confusion_matrix(confusion_matrix):
     temp1 = sum(confusion_matrix[c][c] for c in range(num_classes))
@@ -86,14 +93,17 @@ def compute_confusion_matrix(confusion_matrix):
         if sum(confusion_matrix[c][i] for i in range(num_classes)) == 0:
             precision.append(0.0)
         else:
-            precision.append(float(confusion_matrix[c][c]) / float(sum(confusion_matrix[c][i] for i in range(num_classes))))
+            precision.append(
+                float(confusion_matrix[c][c]) / float(sum(confusion_matrix[c][i] for i in range(num_classes))))
 
         if sum(confusion_matrix[i][c] for i in range(num_classes)) == 0:
             recall.append(0.0)
         else:
-            recall.append(float(confusion_matrix[c][c]) / float(sum(confusion_matrix[i][c] for i in range(num_classes))))
+            recall.append(
+                float(confusion_matrix[c][c]) / float(sum(confusion_matrix[i][c] for i in range(num_classes))))
 
-        F1.append(0 if (precision[c] + recall[c]) == 0 else 2.0 * (precision[c] * recall[c]) / (precision[c] + recall[c]))
+        F1.append(
+            0 if (precision[c] + recall[c]) == 0 else 2.0 * (precision[c] * recall[c]) / (precision[c] + recall[c]))
     overall_precision = sum(precision) / float(num_classes)
     overall_recall = sum(recall) / float(num_classes)
     if overall_precision + overall_recall == 0:
@@ -101,6 +111,7 @@ def compute_confusion_matrix(confusion_matrix):
     else:
         overall_F1 = 2.0 * (overall_precision * overall_recall) / (overall_precision + overall_recall)
     return accuracy, precision, recall, F1, overall_precision, overall_recall, overall_F1
+
 
 def get_classification_accuracy(predictions, labels):
     # input predictions and labels are 1-D array
@@ -111,17 +122,22 @@ def get_classification_accuracy(predictions, labels):
         confusion_matrix[p][l] += 1
     return accuracy, confusion_matrix
 
+
 def print_preds(predictions, y_batch, is_training=True):
-    print('\n ---------- ' + ('val' if not is_training else 'train') + ' predictions, {} predictions ----------\n'.format(str(predictions.shape[0])))
+    print(
+        '\n ---------- ' + ('val' if not is_training else 'train') + ' predictions, {} predictions ----------\n'.format(
+            str(predictions.shape[0])))
     for pi in range(min(10, predictions.shape[0])):
         pind = np.random.randint(0, predictions.shape[0])
         print(np.nonzero(predictions[pind]), np.nonzero(y_batch[pind]))
+
 
 def evaluate_and_print(scores, labels, log_file=None, is_training=True, epoch=None, batch=None, loss=None):
     # assume inputs are np arrays
     # print('entered evaluate_and_print function')
     scores, labels = np.array(scores), np.array(labels)
-    assert scores.shape == labels.shape, '[Error] scores.shape {}, labels.shape {} doesnot match'.format(scores.shape, labels.shape)
+    assert scores.shape == labels.shape, '[Error] scores.shape {}, labels.shape {} doesnot match'.format(scores.shape,
+                                                                                                         labels.shape)
     predictions = get_prediction_sigmoid(scores)
     assert batch and is_training or not batch
     subset_acc = accuracy_score(labels, predictions)
@@ -129,8 +145,8 @@ def evaluate_and_print(scores, labels, log_file=None, is_training=True, epoch=No
     hamming_lo = hamming_loss(labels, predictions)
     if is_training:
         log_str = ("[Train]" if epoch is None and batch is None else
-                  ("[Train - Epoch {}] ".format(epoch) if batch is None else
-                  "---[train - epoch {}, batch {}] ".format(epoch, batch)))
+                   ("[Train - Epoch {}] ".format(epoch) if batch is None else
+                    "---[train - epoch {}, batch {}] ".format(epoch, batch)))
         log_str += "{}: ".format(time.ctime().replace(' ', '_'))
         log_str += 'loss {:g},'.format(loss) if loss is not None else ''
         log_str += " subset_acc {:g}, jaccard_sim {:g}, hamming_lo {:g}".format(subset_acc, jaccard_sim, hamming_lo)
@@ -145,36 +161,42 @@ def evaluate_and_print(scores, labels, log_file=None, is_training=True, epoch=No
         log_writer.write(log_str + '\n')
         log_writer.close()
 
+
 # ==================== Data Preparation ==============================
 print("Loading data...")
-x, y = preprocess_mimiciii.load_data(dataset_dir=FLAGS.dataset_dir, file_labels_fn=FLAGS.file_labels_fn, max_doc_len=FLAGS.max_doc_len)
+x, y = preprocess_mimiciii.load_data(dataset_dir=FLAGS.dataset_dir, file_labels_fn=FLAGS.file_labels_fn,
+                                     max_doc_len=FLAGS.max_doc_len)
 max_doc_len = len(x[0].split())
 # Shuffle data
 np.random.seed(10)
 shuffle_indices = np.random.permutation(np.arange(len(y)))
 x_shuffled = []
 for si in shuffle_indices:
-    x_shuffled.append(x[si])        # [num_samples, string of max_doc_len of words]
-y_shuffled = y[shuffle_indices]     # np.array(num_samples, num_classes)
+    x_shuffled.append(x[si])  # [num_samples, string of max_doc_len of words]
+y_shuffled = y[shuffle_indices]  # np.array(num_samples, num_classes)
 n_dev_samples, n_test_samples = int(len(y) * 0.1), int(len(y) * 0.1)
 n_train_samples = len(y) - n_dev_samples - n_test_samples
-x_train, x_dev = x_shuffled[:n_train_samples], x_shuffled[n_train_samples:n_train_samples+n_dev_samples]
-y_train, y_dev = y_shuffled[:n_train_samples], y_shuffled[n_train_samples:n_train_samples+n_dev_samples]
+x_train, x_dev = x_shuffled[:n_train_samples], x_shuffled[n_train_samples:n_train_samples + n_dev_samples]
+y_train, y_dev = y_shuffled[:n_train_samples], y_shuffled[n_train_samples:n_train_samples + n_dev_samples]
 print("Train/Dev split: {:d}/{:d}".format(len(y_train), len(y_dev)))
+
 # Change string to integer indices
 vocab_processor = learn.preprocessing.VocabularyProcessor(max_doc_len, min_frequency=3)
-x_train = np.array(list(vocab_processor.fit_transform(x_train)))    # x_train shape: (num_train_samples, max_doc_len)
-x_dev = np.array(list(vocab_processor.transform(x_dev)))            # x_dev shape: (num_dev_samples, max_doc_len)
-
+x_train = np.array(list(vocab_processor.fit_transform(x_train)))  # x_train shape: (num_train_samples, max_doc_len)
+x_dev = np.array(list(vocab_processor.transform(x_dev)))  # x_dev shape: (num_dev_samples, max_doc_len)
 
 num_classes = y_train.shape[1]
-log_file = FLAGS.task + ('_small_' if '_small_' in FLAGS.file_labels_fn else '_') + str(y_train.shape[1]) + 'labels_' + str(FLAGS.learning_rate) + 'lr_' + time.ctime().replace(' ', '_') + '.txt'
+log_file = FLAGS.task + ('_small_' if '_small_' in FLAGS.file_labels_fn else '_') + str(
+    y_train.shape[1]) + 'labels_' + str(FLAGS.learning_rate) + 'lr_' + time.ctime().replace(' ', '_') + '.txt'
 log_file = os.path.join(FLAGS.log_dir, log_file)
 num_batches_per_epoch = int((n_train_samples - 1) / FLAGS.batch_size) + 1
-evalute_per_batch = FLAGS.evaluate_per_batch if (FLAGS.evaluate_per_batch and '_small_' not in FLAGS.file_labels_fn) else num_batches_per_epoch * FLAGS.evaluate_per_epoch
+evalute_per_batch = FLAGS.evaluate_per_batch if (
+    FLAGS.evaluate_per_batch and '_small_' not in FLAGS.file_labels_fn) else num_batches_per_epoch * FLAGS.evaluate_per_epoch
 decay_every_steps = 2000
-print("Vocabulary Size: {:d}".format(len(vocab_processor.vocabulary_)))
+
 assert len(vocab_processor.vocabulary_) > 100
+
+print("Vocabulary Size: {:d}".format(len(vocab_processor.vocabulary_)))
 print('batch_size: {:d}'.format(FLAGS.batch_size))
 print('x_train shape : {}'.format(x_train.shape))
 print('x_val shape: {}'.format(x_dev.shape))
@@ -193,11 +215,11 @@ print("dropout keep prob: {}".format(FLAGS.dropout_keep_prob))
 print("l2 reg lambda: {}".format(FLAGS.l2_reg_lambda))
 print("learning rate decay: {}".format(FLAGS.learning_rate_decay))
 
-
 # ====================== Training ============================
 
 with tf.Graph().as_default():
-    session_conf = tf.ConfigProto(allow_soft_placement=FLAGS.allow_soft_placement, log_device_placement=FLAGS.log_device_placement)
+    session_conf = tf.ConfigProto(allow_soft_placement=FLAGS.allow_soft_placement,
+                                  log_device_placement=FLAGS.log_device_placement)
     session_conf.gpu_options.allow_growth = True
     sess = tf.Session(config=session_conf)
     log_writer = open(log_file, 'w')
@@ -222,13 +244,15 @@ with tf.Graph().as_default():
 
         ##### Define Training procedure
         decayed_learning_rate = tf.train.exponential_decay(FLAGS.learning_rate, global_step, decay_every_steps,
-                                                           FLAGS.learning_rate_decay, staircase=True)   # decay around every 10 epoches
+                                                           FLAGS.learning_rate_decay,
+                                                           staircase=True)  # decay around every 10 epoches
         optimizer = tf.train.AdamOptimizer(decayed_learning_rate)
         grads_and_vars = optimizer.compute_gradients(cnn.loss)
         train_op = optimizer.apply_gradients(grads_and_vars, global_step=global_step)
 
         ##### Output directory for models and summaries
-        out_dir = os.path.abspath(os.path.join(os.path.curdir, "runs_{0}".format('multilabel_' + str(num_classes) if FLAGS.multilabel else '1class'), time.ctime().replace(' ', '_')))
+        out_dir = os.path.abspath(os.path.join(os.path.curdir, "runs_{0}".format(
+            'multilabel_' + str(num_classes) if FLAGS.multilabel else '1class'), time.ctime().replace(' ', '_')))
         print("Writing to {}".format(out_dir))
         print("Log file is {}\n".format(log_file))
         grad_summaries = []
@@ -261,30 +285,41 @@ with tf.Graph().as_default():
             print('[INFO] loading model from ', tf.train.latest_checkpoint(FLAGS.load_model_folder))
             saver.restore(sess, tf.train.latest_checkpoint(FLAGS.load_model_folder))
 
+
         def train_step(x_batch, y_batch):
             # x_batch: np.array(batch_size, max_doc_len), y_batch: np.array(batch_size, num_classes)
-            feed_dict = { cnn.input_x: x_batch, cnn.input_y: y_batch, cnn.dropout_keep_prob: FLAGS.dropout_keep_prob  }
-            _, step, summaries, loss, accuracy, scores = sess.run([train_op, global_step, train_summary_op, cnn.loss, cnn.accuracy, cnn.scores], feed_dict)
-            if FLAGS.multilabel and step % (num_batches_per_epoch // 100) == 0: evaluate_and_print(scores, y_batch, is_training=True, epoch=step//num_batches_per_epoch, batch=step%num_batches_per_epoch, loss=loss)
+            feed_dict = {cnn.input_x: x_batch, cnn.input_y: y_batch, cnn.dropout_keep_prob: FLAGS.dropout_keep_prob}
+            _, step, summaries, loss, accuracy, scores = sess.run(
+                [train_op, global_step, train_summary_op, cnn.loss, cnn.accuracy, cnn.scores], feed_dict)
+            if FLAGS.multilabel and step % (num_batches_per_epoch // 100) == 0: evaluate_and_print(scores, y_batch,
+                                                                                                   is_training=True,
+                                                                                                   epoch=step // num_batches_per_epoch,
+                                                                                                   batch=step % num_batches_per_epoch,
+                                                                                                   loss=loss)
             return loss, accuracy, scores
+
 
         def dev_step(x_batch, y_batch):
             dev_size = len(x_batch)
             max_batch_size = 500
             num_batches = int((dev_size - 1) / max_batch_size) + 1
             acc, losses, dev_scores = [], [], []
-            print("\n[Evaluation]{}\nNumber of batches in dev set is {}".format(time.ctime().replace(' ', '_'), (num_batches)))
+            print("\n[Evaluation]{}\nNumber of batches in dev set is {}".format(time.ctime().replace(' ', '_'),
+                                                                                (num_batches)))
             for i in range(num_batches):
                 x_batch_dev, y_batch_dev = preprocess_mimiciii.get_batched(x_batch, y_batch, i * max_batch_size,
-                                           min(dev_size, (i + 1) * max_batch_size))
+                                                                           min(dev_size, (i + 1) * max_batch_size))
                 feed_dict = {cnn.input_x: x_batch_dev, cnn.input_y: y_batch_dev, cnn.dropout_keep_prob: 1.0}
-                step, summaries, loss, accuracy, scores = sess.run([global_step, dev_summary_op, cnn.loss, cnn.accuracy, cnn.scores], feed_dict)
+                step, summaries, loss, accuracy, scores = sess.run(
+                    [global_step, dev_summary_op, cnn.loss, cnn.accuracy, cnn.scores], feed_dict)
                 dev_summary_writer.add_summary(summaries, step)
                 acc.append(accuracy)
                 losses.append(loss)
                 dev_scores.extend(scores)
             print("Mean accuracy = {}, Mean loss = {}".format(np.mean(acc), np.mean(losses)))
-            if FLAGS.multilabel: evaluate_and_print(dev_scores, y_batch, is_training=False, epoch=step//num_batches_per_epoch, batch=None, loss=np.mean(losses))
+            if FLAGS.multilabel: evaluate_and_print(dev_scores, y_batch, is_training=False,
+                                                    epoch=step // num_batches_per_epoch, batch=None,
+                                                    loss=np.mean(losses))
 
 
         train_scores, train_labels, train_loss, train_accuracy = [], [], [], []
@@ -296,12 +331,11 @@ with tf.Graph().as_default():
             train_labels.extend(y_batch)
 
             if tf.train.global_step(sess, global_step) % num_batches_per_epoch == 0:
-                if FLAGS.multilabel: evaluate_and_print(train_scores, train_labels, is_training=True, loss=np.mean(train_loss))
+                if FLAGS.multilabel: evaluate_and_print(train_scores, train_labels, is_training=True,
+                                                        loss=np.mean(train_loss))
                 train_scores, train_labels, train_loss, train_accuracy = [], [], [], []
                 dev_step(x_dev, y_dev)
 
-            if (tf.train.global_step(sess, global_step)+1) % (num_batches_per_epoch * FLAGS.checkpoint_per_epoch) == 0:
+            if (tf.train.global_step(sess, global_step) + 1) % (
+                        num_batches_per_epoch * FLAGS.checkpoint_per_epoch) == 0:
                 path = saver.save(sess, checkpoint_prefix, global_step=tf.train.global_step(sess, global_step))
-
-
-

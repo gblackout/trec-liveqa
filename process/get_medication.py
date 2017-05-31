@@ -3,22 +3,26 @@ import json
 import io
 from collections import Counter
 
+
 def import_json(filename):
     with open(filename) as data_file:
         data = json.load(data_file)
     return data
 
+
 def is_number_index(note):
     lines = note.split('\r')
     has_digit = 0
     for line in lines:
-        if line[:3] == str(has_digit+1) + '. ':
+        if line[:3] == str(has_digit + 1) + '. ':
             has_digit += 1
         if has_digit >= 3:
             return True
     return False
 
-indicators = [' capsule sig', ' liquid sig', ' tablet, chewable sig', ' capsule', ' gel sig', ' packet sig', ' misc sig',
+
+indicators = [' capsule sig', ' liquid sig', ' tablet, chewable sig', ' capsule', ' gel sig', ' packet sig',
+              ' misc sig',
               ' pads, medicated sig', ' tablet, chewable', ' ointment sig', ' powder sig', ' cream sig', ' sig:',
               ' powder :', ' syringe sig', ' kit sig', 'po daily', 'mg tablet', 'tablet by mouth', 'by mouth',
               ' applied t.i.d. p.r.n.', ' to the groin t.i.d. and p.r.n.', '+ d ',
@@ -34,12 +38,14 @@ noise = ['nph', 'day', 'a day', 'at home', 'home o', 'a day)', 'bedtime)', 'to',
          'delayed release', 'dosage uncertain', 'mouth', 'home meds', 'meds', 'daily', 'mg', 'for', 'dr', 'prn',
          'disease', ]
 
+
 def rm_punc(line):
     # remove punctuations at the end of a line
     line = line.strip()
     while line and sum(line[-1] == punc for punc in ['.', '#', '%', ',', ':']) > 0:
         line = line[:-1].strip()
     return line
+
 
 def get_med_name(line):
     # select any parts that are before numbers or indicator words
@@ -48,7 +54,7 @@ def get_med_name(line):
         if line[i].isdigit():
             return rm_punc(line[:i].strip())
         for indicator in indicators:
-            if line[i:i+len(indicator)] == indicator:
+            if line[i:i + len(indicator)] == indicator:
                 return rm_punc(line[:i].strip())
         i += 1
     return rm_punc(line.strip())
@@ -63,17 +69,19 @@ def get_med(note, fo=None, numerical_indexed=False):
     meds = [med for med in meds if med and med not in noise]
     return meds
 
+
 def get_med_lineSeperated(note, fo=None):
     lines = note.split('\r')
-    meds= []
+    meds = []
     for line in lines:
         med = get_med_name(line)
         if med: meds.append(med)
     return meds
 
+
 def get_med_numericalIndexed(note, fo=None):
     lines = note.split('\r')
-    meds= []
+    meds = []
     digit = 1
     for line in lines:
         if line[:3] == str(digit) + '. ':
@@ -87,11 +95,12 @@ def get_med_numericalIndexed(note, fo=None):
     assert len(meds) <= digit - 1
     return meds
 
+
 if __name__ == "__main__":
 
-    #================================
+    # ================================
     # Get discharge medication notes
-    #================================
+    # ================================
     disch_med_notes = []
     admis_med_notes = []
     filenames = []
@@ -113,9 +122,9 @@ if __name__ == "__main__":
     # fo.close()
     print('Total number of patients having medication field: ', count)
 
-    #================================
+    # ================================
     # Get admission medication notes
-    #================================
+    # ================================
     admis_med_notes = []
     filenames = []
     files = glob.glob('../notes_json_all_fields/*.json')
@@ -135,9 +144,9 @@ if __name__ == "__main__":
     # fo.close()
     print('Total number of patients having medication field: ', count)
 
-    #===============================================
+    # ===============================================
     # Extract discharge medication names from notes
-    #===============================================
+    # ===============================================
     ncount = 0
     disch_meds = {}
     fo = open('../medication_output/extracted_disch_meds', 'w')
@@ -155,9 +164,9 @@ if __name__ == "__main__":
     fo.close()
     print('disch_meds: ', len(disch_meds))
 
-    #==========================================
+    # ==========================================
     # Extract admission medications from notes
-    #==========================================
+    # ==========================================
     # notes = open('../check_medication', 'r').read().split('\n\n-----------------------------------------------------\n\n')
     ncount = 0
     admis_meds = {}
@@ -182,10 +191,11 @@ if __name__ == "__main__":
     print(len(admis_med_notes), ncount)
     print('admis_meds: ', len(admis_meds))
 
-    #===============================
+    # ===============================
     # Record medication frequencies
-    #===============================
+    # ===============================
     from collections import defaultdict
+
     all_meds = defaultdict(int)
     for med in disch_meds:
         all_meds[med] += disch_meds[med]
@@ -195,7 +205,7 @@ if __name__ == "__main__":
     fo = open('../medication_output/all_meds_freq', 'w')
     count_freq5 = 0
     count_totalfreq5 = 0
-    for med, freq in reversed(sorted(all_meds.iteritems(), key=lambda (k,v): (v,k))):
+    for med, freq in reversed(sorted(all_meds.iteritems(), key=lambda (k, v): (v, k))):
         if len(med) == 1: continue
         fo.write(med + ', \t' + str(freq) + '\n')
         if freq >= 5:
@@ -203,4 +213,5 @@ if __name__ == "__main__":
             count_totalfreq5 += freq
     fo.close()
     print('Total meds : ', str(len(all_meds)), '\t freq >= 5 : ', str(count_freq5))
-    print('All meds : ', str(len(all_meds)), '\t all freq >= 5 : ', str(count_totalfreq5), '\t persentage : ', str(float(count_totalfreq5) / float(len(all_meds))) )
+    print('All meds : ', str(len(all_meds)), '\t all freq >= 5 : ', str(count_totalfreq5), '\t persentage : ',
+          str(float(count_totalfreq5) / float(len(all_meds))))
