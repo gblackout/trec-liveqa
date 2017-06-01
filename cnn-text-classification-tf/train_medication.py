@@ -1,8 +1,13 @@
 #! /usr/bin/env python
-import os, time, glob, pickle, sys, math
-from misc import linesep
+import math
+import os
+import sys
+import time
+
+from utils.misc import linesep
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-import tensorflow as tf, numpy as np, scipy.io as io
+import tensorflow as tf, numpy as np
 from tensorflow.contrib import learn
 from sklearn.metrics import accuracy_score, jaccard_similarity_score, hamming_loss
 
