@@ -3,8 +3,9 @@ import math
 import os
 import sys
 import time
+from os.path import join as joinpath
 
-from utils.misc import linesep
+from utils.misc import linesep, get_output_folder, makedir
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import tensorflow as tf, numpy as np
@@ -21,7 +22,7 @@ from text_cnn import TextCNN
 # ==================================================
 
 # Load files
-tf.flags.DEFINE_string("file_labels_fn", '../../label_index', "")
+tf.flags.DEFINE_string("file_labels_fn", '../label_index', "")
 
 tf.flags.DEFINE_string("vocab_load_file", '../medication_output/vocab', "vocabulary file")
 tf.flags.DEFINE_integer("build_vocabulary", 1, "load vocabulary file")
@@ -34,7 +35,7 @@ tf.flags.DEFINE_string("load_traindata_file", '../medication_output/traindata', 
 tf.flags.DEFINE_string("task", "medication", "")
 tf.flags.DEFINE_integer("multilabel", 1, "softmax or sigmoid")
 
-tf.flags.DEFINE_string("dataset_dir", '../../uni_containers_tmp', "")
+tf.flags.DEFINE_string("dataset_dir", '../uni_containers_tmp', "")
 
 tf.flags.DEFINE_integer("max_doc_len", None,
                         "The maximum number of words in a document, each word is transformed to an integer in vector representation.")
@@ -42,6 +43,7 @@ tf.flags.DEFINE_string("log_dir", 'logs/', "")
 tf.flags.DEFINE_string("features_dir", 'features', "")
 tf.flags.DEFINE_integer("save_features", 0, "")
 tf.flags.DEFINE_integer("save_features_per_epoch", 5, "")
+tf.flags.DEFINE_string("output_dir", 'out', "main output directory")
 
 # Model Hyperparameters
 tf.flags.DEFINE_integer("embedding_dim", 128, "Dimensionality of character embedding (default: 128)")
@@ -58,15 +60,16 @@ tf.flags.DEFINE_integer("num_epochs", 2000, "Number of training epochs (default:
 tf.flags.DEFINE_integer("evaluate_per_epoch", 1, "Evaluate model on dev set after this many steps (default: 100)")
 tf.flags.DEFINE_integer("evaluate_per_batch", 0, "Evaluate model on dev set after this many steps (default: 100)")
 tf.flags.DEFINE_integer("checkpoint_per_epoch", 5, "Save model after this many steps (default: 100)")
-tf.flags.DEFINE_integer("num_checkpoints", 5, "Number of checkpoints to store (default: 5)")
+tf.flags.DEFINE_integer("num_checkpoints", 100, "Number of checkpoints to store (default: 5)")
 # Misc Parameters
 tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
 tf.flags.DEFINE_boolean("log_device_placement", False, "Log placement of ops on devices")
 
 FLAGS = tf.flags.FLAGS
 FLAGS._parse_flags()
-FLAGS.load_traindata_file = FLAGS.load_traindata_file + '_full.pkl' if '_small_' not in FLAGS.file_labels_fn else FLAGS.load_traindata_file + '_small.pkl'
-traindata_savepath = '../medication_output/traindata_full.pkl' if '_small_' not in FLAGS.file_labels_fn else '../medication_output/traindata_small.pkl'
+
+# FLAGS.load_traindata_file = FLAGS.load_traindata_file + '_full.pkl' if '_small_' not in FLAGS.file_labels_fn else FLAGS.load_traindata_file + '_small.pkl'
+# traindata_savepath = '../medication_output/traindata_full.pkl' if '_small_' not in FLAGS.file_labels_fn else '../medication_output/traindata_small.pkl'
 
 print("\nParameters...")
 for attr, value in sorted(FLAGS.__flags.items()):
@@ -141,7 +144,7 @@ def print_preds(predictions, y_batch, is_training=True):
         print(np.nonzero(predictions[pind]), np.nonzero(y_batch[pind]))
 
 
-def evaluate_and_print(scores, labels, log_file=None, is_training=True, epoch=None, batch=None, loss=None):
+def evaluate_and_print(scores, labels, log_path=None, is_training=True, epoch=None, batch=None, loss=None):
     # assume inputs are np arrays
     # print('entered evaluate_and_print function')
     scores, labels = np.array(scores), np.array(labels)
@@ -165,10 +168,10 @@ def evaluate_and_print(scores, labels, log_file=None, is_training=True, epoch=No
         print_preds(predictions, labels)
 
     print(log_str)
-    if log_file:
-        log_writer = open(log_file, 'a')
-        log_writer.write(log_str + '\n')
-        log_writer.close()
+
+    if log_path:
+        with open(log_path, 'a') as log_f:
+            log_f.write(log_str + '\n')
 
 
 # ==================== Data Preparation ==============================
@@ -209,17 +212,26 @@ x_dev = np.array(list(vocab_processor.transform(x_dev)))  # x_dev shape: (num_de
 num_classes = y_train.shape[1]
 
 
-
-log_file = FLAGS.task + \
-           ('_small_' if '_small_' in FLAGS.file_labels_fn else '_') + \
-           str(y_train.shape[1]) + 'labels_' + str(FLAGS.learning_rate) + \
-           'lr_' + time.ctime().replace(' ', '_') + '.txt'
-log_file = os.path.join(FLAGS.log_dir, log_file)
 num_batches_per_epoch = int((n_train_samples - 1) / FLAGS.batch_size) + 1
 evalute_per_batch = FLAGS.evaluate_per_batch if \
     (FLAGS.evaluate_per_batch and '_small_' not in FLAGS.file_labels_fn) \
     else num_batches_per_epoch * FLAGS.evaluate_per_epoch
 decay_every_steps = 2000
+
+
+##### Output directory for models and summaries
+
+out_dir = get_output_folder(FLAGS.output_dir, 'multilabel_' + str(num_classes) if FLAGS.multilabel else '1class')
+# out_dir = os.path.abspath(os.path.join(os.path.curdir, "runs_{0}".format(
+#     'multilabel_' + str(num_classes) if FLAGS.multilabel else '1class'), time.ctime().replace(' ', '_')))
+
+log_path = joinpath(out_dir, FLAGS.log_filename)
+summary_dir = joinpath(out_dir, 'summary')
+checkpoint_dir = joinpath(out_dir, "checkpoint")
+
+makedir(summary_dir)
+makedir(checkpoint_dir)
+
 
 assert len(vocab_processor.vocabulary_) > 100
 
@@ -241,6 +253,9 @@ print("learning rate: {}".format(FLAGS.learning_rate))
 print("dropout keep prob: {}".format(FLAGS.dropout_keep_prob))
 print("l2 reg lambda: {}".format(FLAGS.l2_reg_lambda))
 print("learning rate decay: {}".format(FLAGS.learning_rate_decay))
+print("Writing to {}".format(out_dir))
+print("Log file is {}\n".format(log_path))
+
 
 # ====================== Training ============================
 linesep('TRAINING')
@@ -250,8 +265,8 @@ with tf.Graph().as_default():
                                   log_device_placement=FLAGS.log_device_placement)
     session_conf.gpu_options.allow_growth = True
     sess = tf.Session(config=session_conf)
-    log_writer = open(log_file, 'w')
-    log_writer.close()
+
+
 
     with sess.as_default():
         global_step = tf.Variable(0, name="global_step", trainable=False)
@@ -278,11 +293,8 @@ with tf.Graph().as_default():
         grads_and_vars = optimizer.compute_gradients(cnn.loss)
         train_op = optimizer.apply_gradients(grads_and_vars, global_step=global_step)
 
-        ##### Output directory for models and summaries
-        out_dir = os.path.abspath(os.path.join(os.path.curdir, "runs_{0}".format(
-            'multilabel_' + str(num_classes) if FLAGS.multilabel else '1class'), time.ctime().replace(' ', '_')))
-        print("Writing to {}".format(out_dir))
-        print("Log file is {}\n".format(log_file))
+
+        # init summary writers
         grad_summaries = []
         for g, v in grads_and_vars:
             if g is not None:
@@ -293,18 +305,14 @@ with tf.Graph().as_default():
         grad_summaries_merged = tf.summary.merge(grad_summaries)
         loss_summary = tf.summary.scalar("loss", cnn.loss)
         acc_summary = tf.summary.scalar("accuracy", cnn.accuracy)
-        train_summary_op = tf.summary.merge([loss_summary, acc_summary, grad_summaries_merged])
-        train_summary_dir = os.path.join(out_dir, "summaries", "train")
-        train_summary_writer = tf.summary.FileWriter(train_summary_dir, sess.graph)
-        dev_summary_op = tf.summary.merge([loss_summary, acc_summary])
-        dev_summary_dir = os.path.join(out_dir, "summaries", "dev")
-        dev_summary_writer = tf.summary.FileWriter(dev_summary_dir, sess.graph)
 
-        ##### Checkpoint directory
-        checkpoint_dir = os.path.abspath(os.path.join(out_dir, "checkpoints"))
-        checkpoint_prefix = os.path.join(checkpoint_dir, "model")
-        if not os.path.exists(checkpoint_dir):
-            os.makedirs(checkpoint_dir)
+        train_summary_op = tf.summary.merge([loss_summary, acc_summary, grad_summaries_merged])
+        dev_summary_op = tf.summary.merge([loss_summary, acc_summary])
+
+        train_summary_writer = tf.summary.FileWriter(joinpath(summary_dir, "train"), sess.graph)
+        dev_summary_writer = tf.summary.FileWriter(joinpath(summary_dir, "dev"), sess.graph)
+
+
         saver = tf.train.Saver(tf.global_variables(), max_to_keep=FLAGS.num_checkpoints)
 
         ##### Initialize all variables
@@ -332,18 +340,26 @@ with tf.Graph().as_default():
             max_batch_size = 500
             num_batches = int((dev_size - 1) / max_batch_size) + 1
             acc, losses, dev_scores = [], [], []
+
             print("\n[Evaluation]{}\nNumber of batches in dev set is {}".format(time.ctime().replace(' ', '_'),
                                                                                 (num_batches)))
             for i in range(num_batches):
+
                 x_batch_dev, y_batch_dev = preprocess_mimiciii.get_batched(x_batch, y_batch, i * max_batch_size,
                                                                            min(dev_size, (i + 1) * max_batch_size))
+
                 feed_dict = {cnn.input_x: x_batch_dev, cnn.input_y: y_batch_dev, cnn.dropout_keep_prob: 1.0}
-                step, summaries, loss, accuracy, scores = sess.run(
-                    [global_step, dev_summary_op, cnn.loss, cnn.accuracy, cnn.scores], feed_dict)
+
+                step, summaries, loss, accuracy, scores = sess.run([global_step,
+                                                                    dev_summary_op,
+                                                                    cnn.loss,
+                                                                    cnn.accuracy,
+                                                                    cnn.scores], feed_dict)
                 dev_summary_writer.add_summary(summaries, step)
                 acc.append(accuracy)
                 losses.append(loss)
                 dev_scores.extend(scores)
+
             print("Mean accuracy = {}, Mean loss = {}".format(np.mean(acc), np.mean(losses)))
             if FLAGS.multilabel: evaluate_and_print(dev_scores, y_batch, is_training=False,
                                                     epoch=step // num_batches_per_epoch, batch=None,
@@ -358,12 +374,14 @@ with tf.Graph().as_default():
             train_scores.extend(scores)
             train_labels.extend(y_batch)
 
-            if tf.train.global_step(sess, global_step) % num_batches_per_epoch == 0:
+            cur_step = tf.train.global_step(sess, global_step)
+
+            if cur_step % num_batches_per_epoch == 0:
                 if FLAGS.multilabel: evaluate_and_print(train_scores, train_labels, is_training=True,
                                                         loss=np.mean(train_loss))
                 train_scores, train_labels, train_loss, train_accuracy = [], [], [], []
                 dev_step(x_dev, y_dev)
 
-            if (tf.train.global_step(sess, global_step) + 1) % (
+            if (cur_step + 1) % (
                         num_batches_per_epoch * FLAGS.checkpoint_per_epoch) == 0:
-                path = saver.save(sess, checkpoint_prefix, global_step=tf.train.global_step(sess, global_step))
+                path = saver.save(sess, checkpoint_dir, global_step=cur_step)
