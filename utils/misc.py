@@ -2,6 +2,7 @@ import sys
 import os, shutil
 from os.path import join as joinpath
 
+
 def linesep(q, sep='='):
     tmp = 80 - len(q)
     slen = tmp / 2 + (tmp % 2 == 0)
@@ -43,7 +44,7 @@ def get_output_folder(parent_dir, run_name):
     """
 
     if not os.path.isdir(parent_dir):
-        os.makedirs(parent_dir, exist_ok=True)
+        os.mkdir(parent_dir)
 
     experiment_id = 0
     for folder_name in os.listdir(parent_dir):

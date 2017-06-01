@@ -39,7 +39,7 @@ tf.flags.DEFINE_string("dataset_dir", '../uni_containers_tmp', "")
 
 tf.flags.DEFINE_integer("max_doc_len", None,
                         "The maximum number of words in a document, each word is transformed to an integer in vector representation.")
-tf.flags.DEFINE_string("log_dir", 'logs/', "")
+tf.flags.DEFINE_string("log_path", 'logs/', "")
 tf.flags.DEFINE_string("features_dir", 'features', "")
 tf.flags.DEFINE_integer("save_features", 0, "")
 tf.flags.DEFINE_integer("save_features_per_epoch", 5, "")
@@ -71,10 +71,9 @@ FLAGS._parse_flags()
 # FLAGS.load_traindata_file = FLAGS.load_traindata_file + '_full.pkl' if '_small_' not in FLAGS.file_labels_fn else FLAGS.load_traindata_file + '_small.pkl'
 # traindata_savepath = '../medication_output/traindata_full.pkl' if '_small_' not in FLAGS.file_labels_fn else '../medication_output/traindata_small.pkl'
 
-print("\nParameters...")
+linesep('Parameter')
 for attr, value in sorted(FLAGS.__flags.items()):
-    print("{}={}".format(attr.upper(), value))
-print("")
+    print '%s\t:\t %s' % (attr.upper(), str(value))
 
 
 def logitics(x):
@@ -146,15 +145,20 @@ def print_preds(predictions, y_batch, is_training=True):
 
 def evaluate_and_print(scores, labels, log_path=None, is_training=True, epoch=None, batch=None, loss=None):
     # assume inputs are np arrays
-    # print('entered evaluate_and_print function')
+
     scores, labels = np.array(scores), np.array(labels)
-    assert scores.shape == labels.shape, '[Error] scores.shape {}, labels.shape {} doesnot match'.format(scores.shape,
-                                                                                                         labels.shape)
-    predictions = get_prediction_sigmoid(scores)
+
+    assert scores.shape == labels.shape, \
+        '[Error] scores.shape {}, labels.shape {} doesnot match'.format(scores.shape, labels.shape)
     assert batch and is_training or not batch
+
+    predictions = get_prediction_sigmoid(scores)
+
+
     subset_acc = accuracy_score(labels, predictions)
     jaccard_sim = jaccard_similarity_score(labels, predictions)
     hamming_lo = hamming_loss(labels, predictions)
+
     if is_training:
         log_str = ("[Train]" if epoch is None and batch is None else
                    ("[Train - Epoch {}] ".format(epoch) if batch is None else
@@ -225,10 +229,11 @@ out_dir = get_output_folder(FLAGS.output_dir, 'multilabel_' + str(num_classes) i
 # out_dir = os.path.abspath(os.path.join(os.path.curdir, "runs_{0}".format(
 #     'multilabel_' + str(num_classes) if FLAGS.multilabel else '1class'), time.ctime().replace(' ', '_')))
 
-log_path = joinpath(out_dir, FLAGS.log_filename)
+log_path = joinpath(out_dir, FLAGS.log_path)
 summary_dir = joinpath(out_dir, 'summary')
 checkpoint_dir = joinpath(out_dir, "checkpoint")
 
+makedir(out_dir)
 makedir(summary_dir)
 makedir(checkpoint_dir)
 
@@ -258,7 +263,7 @@ print("Log file is {}\n".format(log_path))
 
 
 # ====================== Training ============================
-linesep('TRAINING')
+linesep('compile model')
 
 with tf.Graph().as_default():
     session_conf = tf.ConfigProto(allow_soft_placement=FLAGS.allow_soft_placement,
@@ -323,15 +328,37 @@ with tf.Graph().as_default():
 
 
         def train_step(x_batch, y_batch):
-            # x_batch: np.array(batch_size, max_doc_len), y_batch: np.array(batch_size, num_classes)
-            feed_dict = {cnn.input_x: x_batch, cnn.input_y: y_batch, cnn.dropout_keep_prob: FLAGS.dropout_keep_prob}
-            _, step, summaries, loss, accuracy, scores = sess.run(
-                [train_op, global_step, train_summary_op, cnn.loss, cnn.accuracy, cnn.scores], feed_dict)
-            if FLAGS.multilabel and step % (num_batches_per_epoch // 100) == 0: evaluate_and_print(scores, y_batch,
-                                                                                                   is_training=True,
-                                                                                                   epoch=step // num_batches_per_epoch,
-                                                                                                   batch=step % num_batches_per_epoch,
-                                                                                                   loss=loss)
+            """
+            train on one batch
+            
+            input
+            -----
+            x_batch: np.array(batch_size, max_doc_len)
+            y_batch: np.array(batch_size, num_classes)
+            
+            """
+
+            feed_dict = {cnn.input_x: x_batch,
+                         cnn.input_y: y_batch,
+                         cnn.dropout_keep_prob: FLAGS.dropout_keep_prob}
+
+            _, step, summaries, loss, accuracy, scores = sess.run([train_op,
+                                                                   global_step,
+                                                                   train_summary_op,
+                                                                   cnn.loss,
+                                                                   cnn.accuracy,
+                                                                   cnn.scores], feed_dict)
+
+            train_summary_writer.add_summary(summaries, step)
+
+            if step % (num_batches_per_epoch // 100) == 0:
+                evaluate_and_print(scores,
+                                   y_batch,
+                                   is_training=True,
+                                   epoch=step // num_batches_per_epoch,
+                                   batch=step % num_batches_per_epoch,
+                                   loss=loss)
+
             return loss, accuracy, scores
 
 
@@ -348,7 +375,9 @@ with tf.Graph().as_default():
                 x_batch_dev, y_batch_dev = preprocess_mimiciii.get_batched(x_batch, y_batch, i * max_batch_size,
                                                                            min(dev_size, (i + 1) * max_batch_size))
 
-                feed_dict = {cnn.input_x: x_batch_dev, cnn.input_y: y_batch_dev, cnn.dropout_keep_prob: 1.0}
+                feed_dict = {cnn.input_x: x_batch_dev,
+                             cnn.input_y: y_batch_dev,
+                             cnn.dropout_keep_prob: 1.0}
 
                 step, summaries, loss, accuracy, scores = sess.run([global_step,
                                                                     dev_summary_op,
@@ -361,27 +390,47 @@ with tf.Graph().as_default():
                 dev_scores.extend(scores)
 
             print("Mean accuracy = {}, Mean loss = {}".format(np.mean(acc), np.mean(losses)))
-            if FLAGS.multilabel: evaluate_and_print(dev_scores, y_batch, is_training=False,
-                                                    epoch=step // num_batches_per_epoch, batch=None,
-                                                    loss=np.mean(losses))
+
+            evaluate_and_print(dev_scores,
+                               y_batch,
+                               is_training=False,
+                               epoch=step // num_batches_per_epoch,
+                               batch=None,
+                               loss=np.mean(losses))
 
 
-        train_scores, train_labels, train_loss, train_accuracy = [], [], [], []
-        for x_batch, y_batch in preprocess_mimiciii.batch_iter(x_train, y_train, FLAGS.batch_size, FLAGS.num_epochs):
+
+        # train_scores, train_labels, train_loss, train_accuracy = [], [], [], []
+        epoch_cnt = 0
+        # TODO maynot want to shuffle
+        for x_batch, y_batch, is_epochComplete in preprocess_mimiciii.batch_iter(x_train, y_train, FLAGS.batch_size):
+
+            linesep('train epoch %i' % epoch_cnt)
+
             loss, accuracy, scores = train_step(x_batch, y_batch)
-            train_loss.append(loss)
-            train_accuracy.append(accuracy)
-            train_scores.extend(scores)
-            train_labels.extend(y_batch)
+
+            # train_loss.append(loss)
+            # train_accuracy.append(accuracy)
+            # train_scores.extend(scores)
+            # train_labels.extend(y_batch)
 
             cur_step = tf.train.global_step(sess, global_step)
 
-            if cur_step % num_batches_per_epoch == 0:
-                if FLAGS.multilabel: evaluate_and_print(train_scores, train_labels, is_training=True,
-                                                        loss=np.mean(train_loss))
-                train_scores, train_labels, train_loss, train_accuracy = [], [], [], []
+            if is_epochComplete:
+                # evaluate_and_print(train_scores,
+                #                    train_labels,
+                #                    is_training=True,
+                #                    loss=np.mean(train_loss))
+                # train_scores, train_labels, train_loss, train_accuracy = [], [], [], []
+
+                linesep('evaluate model at epoch %i' % epoch_cnt)
                 dev_step(x_dev, y_dev)
 
-            if (cur_step + 1) % (
-                        num_batches_per_epoch * FLAGS.checkpoint_per_epoch) == 0:
-                path = saver.save(sess, checkpoint_dir, global_step=cur_step)
+                linesep('save model at epoch %i' % epoch_cnt)
+                saver.save(sess, checkpoint_dir, global_step=cur_step)
+
+                epoch_cnt += 1
+
+            # if (cur_step + 1) % (
+            #             num_batches_per_epoch * FLAGS.checkpoint_per_epoch) == 0:
+            #     path = saver.save(sess, checkpoint_dir, global_step=cur_step)

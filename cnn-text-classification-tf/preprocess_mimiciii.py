@@ -224,7 +224,7 @@ def load_data(dataset_dir, file_labels_fn, max_doc_len=None, load_adMed=False, a
         return x, adMed_labels, y, max_doc_len
 
 
-def batch_iter(x, y, batch_size, num_epochs, shuffle=True):
+def batch_iter(x, y, batch_size, shuffle=True):
     """
     
     input (shuffled)
@@ -244,9 +244,8 @@ def batch_iter(x, y, batch_size, num_epochs, shuffle=True):
     """
     data_size = len(x)  # array can have len()
     num_batches_per_epoch = int((data_size - 1) / batch_size) + 1
-    for epoch in range(num_epochs):
-        print("In epoch >> " + str(epoch))
-        print("num batches per epoch is: " + str(num_batches_per_epoch))
+
+    while True:
         # Shuffle the data at each epoch
         if shuffle:
             shuffle_indices = np.random.permutation(np.arange(data_size))
@@ -255,11 +254,15 @@ def batch_iter(x, y, batch_size, num_epochs, shuffle=True):
         else:
             x_shuffled = x  # np.array(num_samples, 1014)
             y_shuffled = y  # np.array(num_samples, 2)
+
         for batch_num in range(num_batches_per_epoch):
             start_index = batch_num * batch_size
             end_index = min((batch_num + 1) * batch_size, data_size)
+            is_epochComplete = batch_num+1 == num_batches_per_epoch
+
             x_batch, y_batch = get_batched(x_shuffled, y_shuffled, start_index, end_index)
-            yield x_batch, y_batch  # [np.array(batch_size, max_doc_len), np.array(batch_size, num_classes))]
+
+            yield x_batch, y_batch, is_epochComplete
 
 
 def get_batched(x, y, start_index, end_index):
