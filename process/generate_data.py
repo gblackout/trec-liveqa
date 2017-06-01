@@ -270,16 +270,17 @@ class NoteContainer:
 
         for k in synonym:
 
-            if k == 'discharge_medications':
+            if k == 'discharge_medications' or (self.__dict__[k] is None):
                 continue
 
             concate_text = ''.join(self.__dict__[k])
             concate_text = punc_reg.sub(' ', concate_text)
             concate_text = space_reg.sub(' ', concate_text)
+            concate_text = concate_text.strip().lower()
 
             res.append(concate_text)
 
-        return ' '.join(res).lower()
+        return ' '.join(res)
 
 
 def import_json(filename):

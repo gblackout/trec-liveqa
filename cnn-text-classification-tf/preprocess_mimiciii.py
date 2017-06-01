@@ -178,7 +178,7 @@ def load_mimiciii(dataset_dir, file_labels_fn, max_doc_len=None, threshold=0.7):
 
 
 def load_data(dataset_dir, file_labels_fn, max_doc_len=None, load_adMed=False, adMed_file_labels_fn=None,
-              threshold=None):
+              threshold=0.7):
     """
     main method for obtaining dataset
     

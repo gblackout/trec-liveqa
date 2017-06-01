@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import os, time, glob, pickle, sys, math
-
+from misc import linesep
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import tensorflow as tf, numpy as np, scipy.io as io
 from tensorflow.contrib import learn
@@ -8,15 +8,16 @@ from sklearn.metrics import accuracy_score, jaccard_similarity_score, hamming_lo
 
 sys.path.append('../')
 import preprocess_mimiciii
-from text_cnn_deep import TextCNNDeep
+# from text_cnn_deep import TextCNNDeep
 from text_cnn import TextCNN
-from text_char_cnn import CharCNN
+# from text_char_cnn import CharCNN
 
 # Parameters
 # ==================================================
 
 # Load files
-tf.flags.DEFINE_string("file_labels_fn", 'medication_output/file_label_30-50', "")
+tf.flags.DEFINE_string("file_labels_fn", '../../label_index', "")
+
 tf.flags.DEFINE_string("vocab_load_file", '../medication_output/vocab', "vocabulary file")
 tf.flags.DEFINE_integer("build_vocabulary", 1, "load vocabulary file")
 tf.flags.DEFINE_integer("load_model", 0, "load model file")
@@ -27,7 +28,9 @@ tf.flags.DEFINE_string("load_traindata_file", '../medication_output/traindata', 
 # Folders
 tf.flags.DEFINE_string("task", "medication", "")
 tf.flags.DEFINE_integer("multilabel", 1, "softmax or sigmoid")
-tf.flags.DEFINE_string("dataset_dir", '../', "")
+
+tf.flags.DEFINE_string("dataset_dir", '../../uni_containers_tmp', "")
+
 tf.flags.DEFINE_integer("max_doc_len", None,
                         "The maximum number of words in a document, each word is transformed to an integer in vector representation.")
 tf.flags.DEFINE_string("log_dir", 'logs/', "")
@@ -59,6 +62,7 @@ FLAGS = tf.flags.FLAGS
 FLAGS._parse_flags()
 FLAGS.load_traindata_file = FLAGS.load_traindata_file + '_full.pkl' if '_small_' not in FLAGS.file_labels_fn else FLAGS.load_traindata_file + '_small.pkl'
 traindata_savepath = '../medication_output/traindata_full.pkl' if '_small_' not in FLAGS.file_labels_fn else '../medication_output/traindata_small.pkl'
+
 print("\nParameters...")
 for attr, value in sorted(FLAGS.__flags.items()):
     print("{}={}".format(attr.upper(), value))
@@ -163,35 +167,53 @@ def evaluate_and_print(scores, labels, log_file=None, is_training=True, epoch=No
 
 
 # ==================== Data Preparation ==============================
-print("Loading data...")
-x, y = preprocess_mimiciii.load_data(dataset_dir=FLAGS.dataset_dir, file_labels_fn=FLAGS.file_labels_fn,
+linesep('Loading data')
+
+x, y, max_doc_len = preprocess_mimiciii.load_data(dataset_dir=FLAGS.dataset_dir, file_labels_fn=FLAGS.file_labels_fn,
                                      max_doc_len=FLAGS.max_doc_len)
-max_doc_len = len(x[0].split())
-# Shuffle data
+
+
+linesep('Shuffle data')
+
 np.random.seed(10)
 shuffle_indices = np.random.permutation(np.arange(len(y)))
+
 x_shuffled = []
 for si in shuffle_indices:
     x_shuffled.append(x[si])  # [num_samples, string of max_doc_len of words]
+
 y_shuffled = y[shuffle_indices]  # np.array(num_samples, num_classes)
+
 n_dev_samples, n_test_samples = int(len(y) * 0.1), int(len(y) * 0.1)
 n_train_samples = len(y) - n_dev_samples - n_test_samples
+
 x_train, x_dev = x_shuffled[:n_train_samples], x_shuffled[n_train_samples:n_train_samples + n_dev_samples]
 y_train, y_dev = y_shuffled[:n_train_samples], y_shuffled[n_train_samples:n_train_samples + n_dev_samples]
+
 print("Train/Dev split: {:d}/{:d}".format(len(y_train), len(y_dev)))
 
-# Change string to integer indices
+
+
+linesep('string to int indices')
+
 vocab_processor = learn.preprocessing.VocabularyProcessor(max_doc_len, min_frequency=3)
+
 x_train = np.array(list(vocab_processor.fit_transform(x_train)))  # x_train shape: (num_train_samples, max_doc_len)
 x_dev = np.array(list(vocab_processor.transform(x_dev)))  # x_dev shape: (num_dev_samples, max_doc_len)
 
 num_classes = y_train.shape[1]
-log_file = FLAGS.task + ('_small_' if '_small_' in FLAGS.file_labels_fn else '_') + str(
-    y_train.shape[1]) + 'labels_' + str(FLAGS.learning_rate) + 'lr_' + time.ctime().replace(' ', '_') + '.txt'
+
+
+
+log_file = FLAGS.task + \
+           ('_small_' if '_small_' in FLAGS.file_labels_fn else '_') + \
+           str(y_train.shape[1]) + 'labels_' + str(FLAGS.learning_rate) + \
+           'lr_' + time.ctime().replace(' ', '_') + '.txt'
 log_file = os.path.join(FLAGS.log_dir, log_file)
 num_batches_per_epoch = int((n_train_samples - 1) / FLAGS.batch_size) + 1
-evalute_per_batch = FLAGS.evaluate_per_batch if (
-    FLAGS.evaluate_per_batch and '_small_' not in FLAGS.file_labels_fn) else num_batches_per_epoch * FLAGS.evaluate_per_epoch
+evalute_per_batch = FLAGS.evaluate_per_batch if \
+    (FLAGS.evaluate_per_batch and '_small_' not in FLAGS.file_labels_fn) \
+    else num_batches_per_epoch * FLAGS.evaluate_per_epoch
 decay_every_steps = 2000
 
 assert len(vocab_processor.vocabulary_) > 100
@@ -216,6 +238,7 @@ print("l2 reg lambda: {}".format(FLAGS.l2_reg_lambda))
 print("learning rate decay: {}".format(FLAGS.learning_rate_decay))
 
 # ====================== Training ============================
+linesep('TRAINING')
 
 with tf.Graph().as_default():
     session_conf = tf.ConfigProto(allow_soft_placement=FLAGS.allow_soft_placement,
@@ -227,20 +250,20 @@ with tf.Graph().as_default():
 
     with sess.as_default():
         global_step = tf.Variable(0, name="global_step", trainable=False)
-        cnn = TextCNNDeep(sequence_length=max_doc_len, num_classes=num_classes,
-                          vocab_size=len(vocab_processor.vocabulary_),
-                          embedding_size=FLAGS.embedding_dim,
-                          kernel_sizes=[3],
-                          l2_reg_lambda=FLAGS.l2_reg_lambda, multilabel=FLAGS.multilabel,
-                          num_conv_layers=4, conv_num_filters=[128, 64, 32, 16], pooling_filter_size=3,
-                          fc_sizes=[256, 64])
+        # cnn = TextCNNDeep(sequence_length=max_doc_len, num_classes=num_classes,
+        #                   vocab_size=len(vocab_processor.vocabulary_),
+        #                   embedding_size=FLAGS.embedding_dim,
+        #                   kernel_sizes=[3],
+        #                   l2_reg_lambda=FLAGS.l2_reg_lambda, multilabel=FLAGS.multilabel,
+        #                   num_conv_layers=4, conv_num_filters=[128, 64, 32, 16], pooling_filter_size=3,
+        #                   fc_sizes=[256, 64])
 
-        # cnn = TextCNN(sequence_length=max_doc_len, num_classes=num_classes,
-        #               vocab_size=len(vocab_processor.vocabulary_),
-        #               embedding_size=FLAGS.embedding_dim,
-        #               filter_sizes=list(map(int, FLAGS.filter_sizes.split(","))),
-        #               num_filters=FLAGS.num_filters, multilabel=FLAGS.multilabel,
-        #               pooling_filter_size=3, l2_reg_lambda=FLAGS.l2_reg_lambda)
+        cnn = TextCNN(sequence_length=max_doc_len, num_classes=num_classes,
+                      vocab_size=len(vocab_processor.vocabulary_),
+                      embedding_size=FLAGS.embedding_dim,
+                      filter_sizes=list(map(int, FLAGS.filter_sizes.split(","))),
+                      num_filters=FLAGS.num_filters, multilabel=FLAGS.multilabel,
+                      pooling_filter_size=3, l2_reg_lambda=FLAGS.l2_reg_lambda)
 
         ##### Define Training procedure
         decayed_learning_rate = tf.train.exponential_decay(FLAGS.learning_rate, global_step, decay_every_steps,
