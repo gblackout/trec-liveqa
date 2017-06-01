@@ -73,7 +73,7 @@ FLAGS._parse_flags()
 
 linesep('Parameter')
 for attr, value in sorted(FLAGS.__flags.items()):
-    print '%s\t:\t %s' % (attr.upper(), str(value))
+    print '%s\t\t:\t %s' % (attr.upper(), str(value))
 
 
 def logitics(x):
@@ -402,10 +402,9 @@ with tf.Graph().as_default():
 
         # train_scores, train_labels, train_loss, train_accuracy = [], [], [], []
         epoch_cnt = 0
+        linesep('train epoch %i' % epoch_cnt)
         # TODO maynot want to shuffle
         for x_batch, y_batch, is_epochComplete in preprocess_mimiciii.batch_iter(x_train, y_train, FLAGS.batch_size):
-
-            linesep('train epoch %i' % epoch_cnt)
 
             loss, accuracy, scores = train_step(x_batch, y_batch)
 
@@ -430,6 +429,7 @@ with tf.Graph().as_default():
                 saver.save(sess, checkpoint_dir, global_step=cur_step)
 
                 epoch_cnt += 1
+                linesep('train epoch %i' % epoch_cnt)
 
             # if (cur_step + 1) % (
             #             num_batches_per_epoch * FLAGS.checkpoint_per_epoch) == 0:
