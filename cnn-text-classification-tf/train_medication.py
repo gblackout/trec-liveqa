@@ -4,7 +4,7 @@ import os
 import sys
 import time
 from os.path import join as joinpath
-
+from progressbar import ProgressBar
 from utils.misc import linesep, get_output_folder, makedir
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -16,6 +16,7 @@ sys.path.append('../')
 import preprocess_mimiciii
 # from text_cnn_deep import TextCNNDeep
 from text_cnn import TextCNN
+
 # from text_char_cnn import CharCNN
 
 # Parameters
@@ -73,7 +74,7 @@ FLAGS._parse_flags()
 
 linesep('Parameter')
 for attr, value in sorted(FLAGS.__flags.items()):
-    print '%s\t\t:\t %s' % (attr.upper(), str(value))
+    print '%s%s: %s' % (attr.upper(), ' ' * (30 - len(attr)), str(value))
 
 
 def logitics(x):
@@ -154,7 +155,6 @@ def evaluate_and_print(scores, labels, log_path=None, is_training=True, epoch=No
 
     predictions = get_prediction_sigmoid(scores)
 
-
     subset_acc = accuracy_score(labels, predictions)
     jaccard_sim = jaccard_similarity_score(labels, predictions)
     hamming_lo = hamming_loss(labels, predictions)
@@ -182,8 +182,7 @@ def evaluate_and_print(scores, labels, log_path=None, is_training=True, epoch=No
 linesep('Loading data')
 
 x, y, max_doc_len = preprocess_mimiciii.load_data(dataset_dir=FLAGS.dataset_dir, file_labels_fn=FLAGS.file_labels_fn,
-                                     max_doc_len=FLAGS.max_doc_len)
-
+                                                  max_doc_len=FLAGS.max_doc_len)
 
 linesep('Shuffle data')
 
@@ -204,8 +203,6 @@ y_train, y_dev = y_shuffled[:n_train_samples], y_shuffled[n_train_samples:n_trai
 
 print("Train/Dev split: {:d}/{:d}".format(len(y_train), len(y_dev)))
 
-
-
 linesep('string to int indices')
 
 vocab_processor = learn.preprocessing.VocabularyProcessor(max_doc_len, min_frequency=3)
@@ -215,13 +212,11 @@ x_dev = np.array(list(vocab_processor.transform(x_dev)))  # x_dev shape: (num_de
 
 num_classes = y_train.shape[1]
 
-
 num_batches_per_epoch = int((n_train_samples - 1) / FLAGS.batch_size) + 1
 evalute_per_batch = FLAGS.evaluate_per_batch if \
     (FLAGS.evaluate_per_batch and '_small_' not in FLAGS.file_labels_fn) \
     else num_batches_per_epoch * FLAGS.evaluate_per_epoch
 decay_every_steps = 2000
-
 
 ##### Output directory for models and summaries
 
@@ -236,7 +231,6 @@ checkpoint_dir = joinpath(out_dir, "checkpoint")
 makedir(out_dir)
 makedir(summary_dir)
 makedir(checkpoint_dir)
-
 
 assert len(vocab_processor.vocabulary_) > 100
 
@@ -261,7 +255,6 @@ print("learning rate decay: {}".format(FLAGS.learning_rate_decay))
 print("Writing to {}".format(out_dir))
 print("Log file is {}\n".format(log_path))
 
-
 # ====================== Training ============================
 linesep('compile model')
 
@@ -271,17 +264,8 @@ with tf.Graph().as_default():
     session_conf.gpu_options.allow_growth = True
     sess = tf.Session(config=session_conf)
 
-
-
     with sess.as_default():
         global_step = tf.Variable(0, name="global_step", trainable=False)
-        # cnn = TextCNNDeep(sequence_length=max_doc_len, num_classes=num_classes,
-        #                   vocab_size=len(vocab_processor.vocabulary_),
-        #                   embedding_size=FLAGS.embedding_dim,
-        #                   kernel_sizes=[3],
-        #                   l2_reg_lambda=FLAGS.l2_reg_lambda, multilabel=FLAGS.multilabel,
-        #                   num_conv_layers=4, conv_num_filters=[128, 64, 32, 16], pooling_filter_size=3,
-        #                   fc_sizes=[256, 64])
 
         cnn = TextCNN(sequence_length=max_doc_len, num_classes=num_classes,
                       vocab_size=len(vocab_processor.vocabulary_),
@@ -298,26 +282,33 @@ with tf.Graph().as_default():
         grads_and_vars = optimizer.compute_gradients(cnn.loss)
         train_op = optimizer.apply_gradients(grads_and_vars, global_step=global_step)
 
-
         # init summary writers
-        grad_summaries = []
-        for g, v in grads_and_vars:
-            if g is not None:
-                grad_hist_summary = tf.summary.histogram("{}/grad/hist".format(v.name), g)
-                sparsity_summary = tf.summary.scalar("{}/grad/sparsity".format(v.name), tf.nn.zero_fraction(g))
-                grad_summaries.append(grad_hist_summary)
-                grad_summaries.append(sparsity_summary)
-        grad_summaries_merged = tf.summary.merge(grad_summaries)
-        loss_summary = tf.summary.scalar("loss", cnn.loss)
-        acc_summary = tf.summary.scalar("accuracy", cnn.accuracy)
+        # grad_summaries = []
+        # for g, v in grads_and_vars:
+        #     if g is not None:
+        #         grad_hist_summary = tf.summary.histogram("{}/grad/hist".format(v.name), g)
+        #         sparsity_summary = tf.summary.scalar("{}/grad/sparsity".format(v.name), tf.nn.zero_fraction(g))
+        #         grad_summaries.append(grad_hist_summary)
+        #         grad_summaries.append(sparsity_summary)
+        # grad_summaries_merged = tf.summary.merge(grad_summaries)
 
-        train_summary_op = tf.summary.merge([loss_summary, acc_summary, grad_summaries_merged])
-        dev_summary_op = tf.summary.merge([loss_summary, acc_summary])
+        # training summary
+        train_loss_summary = tf.summary.scalar("train_loss", cnn.loss)
+        train_acc_summary = tf.summary.scalar("train_accuracy", cnn.accuracy)
+        train_summary_op = tf.summary.merge([train_loss_summary, train_acc_summary])
 
-        train_summary_writer = tf.summary.FileWriter(joinpath(summary_dir, "train"), sess.graph)
-        dev_summary_writer = tf.summary.FileWriter(joinpath(summary_dir, "dev"), sess.graph)
+        # test summary
+        test_mean_loss_pd = tf.placeholder(tf.float32, shape=None, name="test_mean_loss")
+        test_mean_accuracy_pd = tf.placeholder(tf.float32, shape=None, name="test_mean_accuracy")
+        test_jaccard_pd = tf.placeholder(tf.float32, shape=None, name="test_jaccard")
 
+        test_loss_summary = tf.summary.scalar("test_mean_loss", test_mean_accuracy_pd)
+        test_acc_summary = tf.summary.scalar("test_mean_accuracy", test_mean_accuracy_pd)
+        test_jaccard_summary = tf.summary.scalar("test_jaccard", test_jaccard_pd)
+        test_summary_op = tf.summary.merge([test_loss_summary, test_acc_summary, test_jaccard_summary])
 
+        # init writer and saver
+        summary_writer = tf.summary.FileWriter(summary_dir, sess.graph)
         saver = tf.train.Saver(tf.global_variables(), max_to_keep=FLAGS.num_checkpoints)
 
         ##### Initialize all variables
@@ -327,16 +318,50 @@ with tf.Graph().as_default():
             saver.restore(sess, tf.train.latest_checkpoint(FLAGS.load_model_folder))
 
 
-        def train_step(x_batch, y_batch):
-            """
-            train on one batch
-            
-            input
-            -----
-            x_batch: np.array(batch_size, max_doc_len)
-            y_batch: np.array(batch_size, num_classes)
-            
-            """
+        def evaluate(testX, testY):
+            dev_size = len(testX)
+            max_batch_size = 500
+            num_batches = int((dev_size - 1) / max_batch_size) + 1
+            cur_step = tf.train.global_step(sess, global_step)
+
+            acc, losses, dev_scores = [], [], []
+            pbar = ProgressBar()
+            for i in pbar(range(num_batches)):
+                x_batch_dev, y_batch_dev = preprocess_mimiciii.get_batched(testX, testY, i * max_batch_size,
+                                                                           min(dev_size, (i + 1) * max_batch_size))
+
+                feed_dict = {cnn.input_x: x_batch_dev,
+                             cnn.input_y: y_batch_dev,
+                             cnn.dropout_keep_prob: 1.0}
+
+                loss, accuracy, scores = sess.run([cnn.loss, cnn.accuracy, cnn.scores], feed_dict)
+
+                acc.append(accuracy)
+                losses.append(loss)
+                dev_scores.extend(scores)
+
+            # print("Mean accuracy = {}, Mean loss = {}".format(np.mean(acc), np.mean(losses)))
+
+            predictions = get_prediction_sigmoid(dev_scores)
+            jaccard_sim = jaccard_similarity_score(y_batch, predictions)
+            summaries = sess.run(test_summary_op,
+                                 {test_mean_loss_pd: np.mean(losses),
+                                  test_mean_accuracy_pd: np.mean(acc),
+                                  test_jaccard_pd: jaccard_sim})
+
+            summary_writer.add_summary(summaries, cur_step)
+
+
+        linesep('initial model evaluate')
+        evaluate(x_dev, y_dev)
+
+        epoch_cnt = 0
+        linesep('train epoch %i' % epoch_cnt)
+        pbar = ProgressBar(maxval=num_batches_per_epoch).start()
+
+        # TODO maynot want to shuffle
+        for x_batch, y_batch, batch_num, is_epochComplete in preprocess_mimiciii.batch_iter(x_train, y_train,
+                                                                                            FLAGS.batch_size):
 
             feed_dict = {cnn.input_x: x_batch,
                          cnn.input_y: y_batch,
@@ -349,88 +374,28 @@ with tf.Graph().as_default():
                                                                    cnn.accuracy,
                                                                    cnn.scores], feed_dict)
 
-            train_summary_writer.add_summary(summaries, step)
+            summary_writer.add_summary(summaries, step)
 
-            if step % (num_batches_per_epoch // 100) == 0:
-                evaluate_and_print(scores,
-                                   y_batch,
-                                   is_training=True,
-                                   epoch=step // num_batches_per_epoch,
-                                   batch=step % num_batches_per_epoch,
-                                   loss=loss)
-
-            return loss, accuracy, scores
-
-
-        def dev_step(x_batch, y_batch):
-            dev_size = len(x_batch)
-            max_batch_size = 500
-            num_batches = int((dev_size - 1) / max_batch_size) + 1
-            acc, losses, dev_scores = [], [], []
-
-            print("\n[Evaluation]{}\nNumber of batches in dev set is {}".format(time.ctime().replace(' ', '_'),
-                                                                                (num_batches)))
-            for i in range(num_batches):
-
-                x_batch_dev, y_batch_dev = preprocess_mimiciii.get_batched(x_batch, y_batch, i * max_batch_size,
-                                                                           min(dev_size, (i + 1) * max_batch_size))
-
-                feed_dict = {cnn.input_x: x_batch_dev,
-                             cnn.input_y: y_batch_dev,
-                             cnn.dropout_keep_prob: 1.0}
-
-                step, summaries, loss, accuracy, scores = sess.run([global_step,
-                                                                    dev_summary_op,
-                                                                    cnn.loss,
-                                                                    cnn.accuracy,
-                                                                    cnn.scores], feed_dict)
-                dev_summary_writer.add_summary(summaries, step)
-                acc.append(accuracy)
-                losses.append(loss)
-                dev_scores.extend(scores)
-
-            print("Mean accuracy = {}, Mean loss = {}".format(np.mean(acc), np.mean(losses)))
-
-            evaluate_and_print(dev_scores,
-                               y_batch,
-                               is_training=False,
-                               epoch=step // num_batches_per_epoch,
-                               batch=None,
-                               loss=np.mean(losses))
-
-
-
-        # train_scores, train_labels, train_loss, train_accuracy = [], [], [], []
-        epoch_cnt = 0
-        linesep('train epoch %i' % epoch_cnt)
-        # TODO maynot want to shuffle
-        for x_batch, y_batch, is_epochComplete in preprocess_mimiciii.batch_iter(x_train, y_train, FLAGS.batch_size):
-
-            loss, accuracy, scores = train_step(x_batch, y_batch)
-
-            # train_loss.append(loss)
-            # train_accuracy.append(accuracy)
-            # train_scores.extend(scores)
-            # train_labels.extend(y_batch)
+            # if step % (num_batches_per_epoch // 100) == 0:
+            #     evaluate_and_print(scores,
+            #                        y_batch,
+            #                        is_training=True,
+            #                        epoch=step // num_batches_per_epoch,
+            #                        batch=step % num_batches_per_epoch,
+            #                        loss=loss)
 
             cur_step = tf.train.global_step(sess, global_step)
+            pbar.update(batch_num + 1)
 
             if is_epochComplete:
-                # evaluate_and_print(train_scores,
-                #                    train_labels,
-                #                    is_training=True,
-                #                    loss=np.mean(train_loss))
-                # train_scores, train_labels, train_loss, train_accuracy = [], [], [], []
+                pbar.finish()
 
                 linesep('evaluate model at epoch %i' % epoch_cnt)
-                dev_step(x_dev, y_dev)
+                evaluate(x_dev, y_dev)
 
                 linesep('save model at epoch %i' % epoch_cnt)
-                saver.save(sess, checkpoint_dir, global_step=cur_step)
+                saver.save(sess, joinpath(checkpoint_dir, str(cur_step) + '.ckpt'), global_step=cur_step)
 
                 epoch_cnt += 1
                 linesep('train epoch %i' % epoch_cnt)
-
-            # if (cur_step + 1) % (
-            #             num_batches_per_epoch * FLAGS.checkpoint_per_epoch) == 0:
-            #     path = saver.save(sess, checkpoint_dir, global_step=cur_step)
+                pbar.start()

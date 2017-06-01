@@ -262,7 +262,7 @@ def batch_iter(x, y, batch_size, shuffle=True):
 
             x_batch, y_batch = get_batched(x_shuffled, y_shuffled, start_index, end_index)
 
-            yield x_batch, y_batch, is_epochComplete
+            yield x_batch, y_batch, batch_num, is_epochComplete
 
 
 def get_batched(x, y, start_index, end_index):
