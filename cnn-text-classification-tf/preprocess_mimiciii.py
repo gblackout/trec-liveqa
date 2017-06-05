@@ -53,7 +53,7 @@ class DataLoader:
 
         # get set of stpwd
         stpwd = set()
-        with open(labelfile_path) as f:
+        with open(stpwd_path) as f:
             stpwd.update([line.strip() for line in f])
 
         if max_doc_len is None:
@@ -75,7 +75,7 @@ class DataLoader:
             text_one = nc.fields_asText()[:max_doc_len]
 
             # stpwd removal
-            tokens= self.vocab_processor._tokenizer([text_one]).next()
+            tokens = self.vocab_processor._tokenizer([text_one]).next()
             filtered_tokens = [tk for tk in tokens if sum([reg(tk) for reg in self.tk_regs]) == 0]
             filtered_tokens = [tk for tk in filtered_tokens if tk not in stpwd]
 
