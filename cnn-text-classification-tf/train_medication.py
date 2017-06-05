@@ -42,6 +42,7 @@ if __name__ == '__main__':
 
     # paths
     tf.flags.DEFINE_string("file_labels_fn", '../label_index', "")
+    tf.flags.DEFINE_string("stpwd_path", '../stpwd', "")
     tf.flags.DEFINE_string("dataset_dir", '../uni_containers_tmp', "")
     tf.flags.DEFINE_string("matdata_dir", '../mat_data', "")
     tf.flags.DEFINE_string("output_dir", 'out', "main output directory")
@@ -89,7 +90,8 @@ if __name__ == '__main__':
         print '======>found mat data in %s' % FLAGS.matdata_dir
     except:
         print '======>mat data not found in %s loading from container in ' % FLAGS.dataset_dir
-        data_loader.load_from_text(FLAGS.dataset_dir, FLAGS.file_labels_fn, max_doc_len=FLAGS.max_doc_len)
+        data_loader.load_from_text(FLAGS.dataset_dir, FLAGS.file_labels_fn, FLAGS.stpwd_path,
+                                   max_doc_len=FLAGS.max_doc_len)
         print '======>saving mat data to %s' %FLAGS.matdata_dir
         data_loader.save_mat(FLAGS.matdata_dir)
 

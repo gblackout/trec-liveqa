@@ -5,6 +5,7 @@ from os.path import join as joinpath
 from process.generate_data import NoteContainer
 import random
 from utils.misc import makedir
+import re
 
 
 class DataLoader:
@@ -28,9 +29,18 @@ class DataLoader:
         self.vocab_size = None
         self.num_class = None
 
-    def load_from_text(self, data_dir, labelfile_path, max_doc_len=None, threshold=0.7, shuffle=True):
-        assert os.path.isfile(labelfile_path), 'index file not found at %s' % labelfile_path
+        # reg for cleaning filtering out meaningless tokens
+        reg1 = re.compile(r'\d')           # remove tokens that are just/contains digits
+        reg2 = re.compile(r'^\w{1,3}$')     # remove tokens that are too short (len<=3)
+        self.tk_regs = [lambda x:reg1.search(x) is not None,
+                        lambda x:reg2.match(x) is not None]
 
+    def load_from_text(self, data_dir, labelfile_path, stpwd_path, max_doc_len=None, threshold=0.7, shuffle=True):
+        assert os.path.isfile(labelfile_path), 'index file not found at %s' % labelfile_path
+        assert os.path.isdir(data_dir), 'data dir not found at %s' % data_dir
+        assert os.path.isfile(stpwd_path), 'stopwords file not found at %s' % stpwd_path
+
+        # get all filenames and their labels
         file_labels = []
         with open(labelfile_path) as f:
             for line in f:
@@ -40,6 +50,11 @@ class DataLoader:
                 mask_vec = parts[1:]
 
                 file_labels.append([joinpath(data_dir, filepath), map(int, mask_vec)])
+
+        # get set of stpwd
+        stpwd = set()
+        with open(labelfile_path) as f:
+            stpwd.update([line.strip() for line in f])
 
         if max_doc_len is None:
             assert threshold is not None, 'max_doc_len and threshold cannot be both None'
@@ -59,7 +74,12 @@ class DataLoader:
             nc = NoteContainer(filepath, mode=1)
             text_one = nc.fields_asText()[:max_doc_len]
 
-            X.append(text_one)
+            # stpwd removal
+            tokens= self.vocab_processor._tokenizer([text_one]).next()
+            filtered_tokens = [tk for tk in tokens if sum([reg(tk) for reg in self.tk_regs]) == 0]
+            filtered_tokens = [tk for tk in filtered_tokens if tk not in stpwd]
+
+            X.append(' '.join(filtered_tokens))
             Y.append(label_vec)
 
         self.X = np.array(list(self.vocab_processor.fit_transform(X)))
@@ -278,5 +298,5 @@ def get_batched(x, y, start_index, end_index):
 
 if __name__ == '__main__':
     loader = DataLoader(0.9, 24)
-    loader.load_from_text('../uni_containers_tmp', '../label_index')
+    loader.load_from_text('../uni_containers_tmp', '../label_index', '../stpwd')
     loader.save_mat('../mat_data')

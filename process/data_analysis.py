@@ -5,6 +5,7 @@ matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import numpy as np
 
+
 def printdoc(doc):
     """
     pretty print a dictionary-format of a admission document
