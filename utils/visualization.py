@@ -38,7 +38,7 @@ def surface_mat(Z):
 
     # Plot the surface.
     surf = ax.plot_surface(X, Y, Z, cmap=cm.coolwarm,
-                           linewidth=0, antialiased=False)
+                           linewidth=0.005, edgecolors='k', antialiased=False)
 
     # Add a color bar which maps values to colors.
     fig.colorbar(surf, shrink=0.5, aspect=5)
@@ -71,7 +71,42 @@ def output_summary(prev, y_pred):
 
     return surface_mat(prev), prev
 
+
+def curr_prf(population, prf):
+
+    x = range(population.shape[0])
+
+
+    fig, ax1 = plt.subplots(figsize=(20, 10))
+
+    ax1.plot(x, prf[0], 'r--', linewidth=2, label='precision')
+    ax1.plot(x, prf[1], 'r-.', linewidth=2, label='recall')
+    ax1.plot(x, prf[2], 'k-', linewidth=3, label='F1')
+    ax1.set_xlabel('med index')
+    plt.xticks(x, x)
+    handles, _ = ax1.get_legend_handles_labels()
+    plt.legend(handles, ['precision', 'recall', 'F1'])
+
+    # Make the y-axis label, ticks and tick labels match the line color.
+    ax1.set_ylabel('PRF', color='b')
+    ax1.tick_params('y', colors='b')
+    ax1.set_ylim([0, 1])
+    ax1.xaxis.grid(True)
+
+    ax2 = ax1.twinx()
+    ax2.plot(x, population, 'b:')
+    ax2.set_ylabel('med frequency', color='r')
+    ax2.tick_params('y', colors='r')
+
+    fig.tight_layout()
+
+    return fig2data(fig)
+
+
 if __name__ == '__main__':
     # plot_surface(np.random.rand(20, 50)+(np.array([range(20)]).T)*0.1)
     from PIL import Image
-    Image.fromarray(surface_mat(np.random.rand(20, 50))).show()
+
+    # Image.fromarray(surface_mat(np.random.rand(20, 50)-(np.array([range(20)]).T)*0.1)).show()
+
+    Image.fromarray(curr_prf(np.random.rand(50)*50, [np.random.rand(50) for _ in xrange(3)])).show()

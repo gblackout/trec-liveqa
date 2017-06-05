@@ -4,7 +4,7 @@ import os
 from os.path import join as joinpath
 from progressbar import ProgressBar
 from utils.misc import linesep, get_output_folder, makedir
-from utils.visualization import prf_summary, output_summary
+from utils.visualization import prf_summary, output_summary, curr_prf
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import tensorflow as tf, numpy as np
 from sklearn.metrics import jaccard_similarity_score
@@ -167,11 +167,13 @@ if __name__ == '__main__':
     test_mean_loss_pd = tf.placeholder(tf.float32, shape=None, name="test_mean_loss")
     test_mean_accuracy_pd = tf.placeholder(tf.float32, shape=None, name="test_mean_accuracy")
     test_jaccard_pd = tf.placeholder(tf.float32, shape=None, name="test_jaccard")
+    test_avg_f_pd = tf.placeholder(tf.float32, shape=None, name="test_avg_f")
     # images
     test_precision_pd = tf.placeholder(tf.uint8, shape=None, name='test_precision')
     test_recall_pd = tf.placeholder(tf.uint8, shape=None, name='test_recall')
     test_fscore_pd = tf.placeholder(tf.uint8, shape=None, name='test_fscore')
     test_dist_pd = tf.placeholder(tf.uint8, shape=None, name='test_distribution')
+    test_curr_prf_pd = tf.placeholder(tf.uint8, shape=None, name='test_curr_prf')
     # image history arrays
     prf_hist = None
     dist_hist = None
@@ -179,13 +181,15 @@ if __name__ == '__main__':
     test_loss_summary = tf.summary.scalar("test_mean_loss", test_mean_loss_pd)
     test_acc_summary = tf.summary.scalar("test_mean_accuracy", test_mean_accuracy_pd)
     test_jaccard_summary = tf.summary.scalar("test_jaccard", test_jaccard_pd)
+    test_avg_f_summary = tf.summary.scalar("test_avg_f_pd", test_avg_f_pd)
     test_precision_summary = tf.summary.image('test_precision', test_precision_pd)
     test_recall_summary = tf.summary.image('test_recall', test_recall_pd)
     test_fscore_summary = tf.summary.image('test_fscore', test_fscore_pd)
     test_dist_summary = tf.summary.image('test_distribution', test_dist_pd)
+    test_curr_prf_summary = tf.summary.image('test_curr_prf', test_curr_prf_pd)
     test_summary_op = tf.summary.merge([test_loss_summary, test_acc_summary, test_jaccard_summary,
-                                        test_precision_summary, test_recall_summary, test_fscore_summary,
-                                        test_dist_summary])
+                                        test_avg_f_summary, test_precision_summary, test_recall_summary,
+                                        test_fscore_summary, test_dist_summary, test_curr_prf_summary])
 
     # init writer and saver
     summary_writer = tf.summary.FileWriter(summary_dir, sess.graph)
@@ -231,15 +235,18 @@ if __name__ == '__main__':
         prf_ls = prf(y_true, y_pred)
         prf_images, prf_hist = prf_summary(prf_hist, prf_ls)
         dist_image, dist_hist = output_summary(dist_hist, y_pred)
+        curr_prf_image = curr_prf(d_loader.get_med_freq(), prf_ls)
 
         summaries = sess.run(test_summary_op,
                              {test_mean_loss_pd: np.mean(losses),
                               test_mean_accuracy_pd: np.mean(acc),
                               test_jaccard_pd: jaccard_sim,
+                              test_avg_f_pd: np.mean(prf_ls[2]),
                               test_precision_pd: np.expand_dims(prf_images[0], axis=0),
                               test_recall_pd: np.expand_dims(prf_images[1], axis=0),
                               test_fscore_pd: np.expand_dims(prf_images[2], axis=0),
-                              test_dist_pd: np.expand_dims(dist_image, axis=0)})
+                              test_dist_pd: np.expand_dims(dist_image, axis=0),
+                              test_curr_prf_pd: np.expand_dims(curr_prf_image, axis=0)})
 
         summary_writer.add_summary(summaries, cur_step)
 

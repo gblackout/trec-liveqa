@@ -23,6 +23,7 @@ class DataLoader:
         self.data_partition = data_partition
         self.partition_ind = None
         self.vocab_processor = None
+        self.med_freq = None
         self.batch_size = batch_size
 
         self.max_doc_len = None
@@ -138,6 +139,12 @@ class DataLoader:
         np.save(joinpath(mat_dir, 'X'), self.X)
         np.save(joinpath(mat_dir, 'Y'), self.Y)
         self.vocab_processor.save(joinpath(mat_dir, 'vocab'))
+
+    def get_med_freq(self):
+        if self.med_freq is None:
+            self.med_freq = np.sum(self.Y[self.partition_ind:, :], axis=0)
+
+        return self.med_freq
 
 
 def get_doc_len(file_labels, threshold=0.8):
