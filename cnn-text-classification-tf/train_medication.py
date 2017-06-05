@@ -168,10 +168,10 @@ if __name__ == '__main__':
     test_mean_accuracy_pd = tf.placeholder(tf.float32, shape=None, name="test_mean_accuracy")
     test_jaccard_pd = tf.placeholder(tf.float32, shape=None, name="test_jaccard")
     # images
-    test_precision_pd = tf.placeholder(tf.unit8, shape=None, name='test_precision')
-    test_recall_pd = tf.placeholder(tf.unit8, shape=None, name='test_recall')
-    test_fscore_pd = tf.placeholder(tf.unit8, shape=None, name='test_fscore')
-    test_dist_pd = tf.placeholder(tf.unit8, shape=None, name='test_distribution')
+    test_precision_pd = tf.placeholder(tf.uint8, shape=None, name='test_precision')
+    test_recall_pd = tf.placeholder(tf.uint8, shape=None, name='test_recall')
+    test_fscore_pd = tf.placeholder(tf.uint8, shape=None, name='test_fscore')
+    test_dist_pd = tf.placeholder(tf.uint8, shape=None, name='test_distribution')
     # image history arrays
     prf_hist = None
     dist_hist = None

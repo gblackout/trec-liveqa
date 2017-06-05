@@ -1,5 +1,9 @@
 import matplotlib
-matplotlib.use('TkAgg')
+import sys
+if sys.platform.startswith('linux'):
+    matplotlib.use('Agg')
+elif sys.platform.startswith('darwin'):
+    matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
@@ -47,7 +51,7 @@ def surface_mat(Z):
 
 
 def prf_summary(prev, prf):
-    if prev:
+    if prev is not None:
         for i in xrange(3):
             prev[i] = np.append(prev[i], np.expand_dims(prf[i], axis=0), axis=0)
     else:
@@ -60,7 +64,7 @@ def output_summary(prev, y_pred):
     sum_pred = np.sum(y_pred, axis=0)
     norm_const = np.sum(sum_pred)
     sum_pred = sum_pred / norm_const if norm_const != 0 else sum_pred
-    if prev:
+    if prev is not None:
         prev = np.append(prev, np.expand_dims(sum_pred, axis=0), axis=0)
     else:
         prev = np.expand_dims(sum_pred, axis=0)
