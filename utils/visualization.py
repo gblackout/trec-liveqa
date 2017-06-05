@@ -74,29 +74,29 @@ def output_summary(prev, y_pred):
 
 def curr_prf(population, prf):
 
-    x = range(population.shape[0])
-
+    x = np.arange(population.shape[0])
+    inds = np.argsort(-population)
 
     fig, ax1 = plt.subplots(figsize=(20, 10))
 
-    ax1.plot(x, prf[0], 'r--', linewidth=2, label='precision')
-    ax1.plot(x, prf[1], 'r-.', linewidth=2, label='recall')
-    ax1.plot(x, prf[2], 'k-', linewidth=3, label='F1')
+    ax1.plot(x, prf[0][inds], 'r--o', linewidth=2, label='precision', markersize=8)
+    ax1.plot(x, prf[1][inds], 'r:^', linewidth=2, label='recall', markersize=9)
+    ax1.plot(x, prf[2][inds], 'k-', linewidth=3, label='F1')
     ax1.set_xlabel('med index')
-    plt.xticks(x, x)
+    plt.xticks(x, x[inds])
     handles, _ = ax1.get_legend_handles_labels()
     plt.legend(handles, ['precision', 'recall', 'F1'])
 
     # Make the y-axis label, ticks and tick labels match the line color.
-    ax1.set_ylabel('PRF', color='b')
-    ax1.tick_params('y', colors='b')
+    ax1.set_ylabel('PRF', color='r')
+    ax1.tick_params('y', colors='r')
     ax1.set_ylim([0, 1])
     ax1.xaxis.grid(True)
 
     ax2 = ax1.twinx()
-    ax2.plot(x, population, 'b:')
-    ax2.set_ylabel('med frequency', color='r')
-    ax2.tick_params('y', colors='r')
+    ax2.plot(x, population[inds], 'b:')
+    ax2.set_ylabel('med frequency', color='b')
+    ax2.tick_params('y', colors='b')
 
     fig.tight_layout()
 
