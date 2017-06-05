@@ -44,7 +44,7 @@ class DataLoader:
         if max_doc_len is None:
             assert threshold is not None, 'max_doc_len and threshold cannot be both None'
             max_doc_len, thre_hist = get_doc_len(file_labels, threshold=threshold)
-            print('=====>> Using doc_len as {} with accumulated histogram {:g}\n'.format(max_doc_len, thre_hist))
+            print '=====>> Using doc_len as %i with accumulated histogram %.3f' % (max_doc_len, thre_hist)
 
         if shuffle:
             random.shuffle(file_labels)
@@ -113,7 +113,7 @@ class DataLoader:
         return int((total_size - 1) / batch_size) + 1
 
     def save_mat(self, mat_dir):
-        assert self.X and self.Y and self.vocab_processor
+        assert not ((self.X is None) or (self.Y is None) or (self.vocab_processor is None))
         makedir(mat_dir)
         np.save(joinpath(mat_dir, 'X'), self.X)
         np.save(joinpath(mat_dir, 'Y'), self.Y)
