@@ -1,14 +1,126 @@
 import numpy as np
 import os
 from tensorflow.contrib import learn
-import sys
 from os.path import join as joinpath
 from process.generate_data import NoteContainer
-from get_mimiciii_data import get_admission_text_from_json
+import random
+from utils.misc import makedir
+
+
+class DataLoader:
+    def __init__(self, data_partition, batch_size):
+        """
+        
+        input
+        -----
+        data_partition:
+            float between (0,1) indicating the ratio of training data in whole dataset
+            
+        """
+        self.X = None
+        self.Y = None
+        self.data_partition = data_partition
+        self.partition_ind = None
+        self.vocab_processor = None
+        self.batch_size = batch_size
+
+        self.max_doc_len = None
+        self.vocab_size = None
+        self.num_class = None
+
+    def load_from_text(self, data_dir, labelfile_path, max_doc_len=None, threshold=0.7, shuffle=True):
+        assert os.path.isfile(labelfile_path), 'index file not found at %s' % labelfile_path
+
+        file_labels = []
+        with open(labelfile_path) as f:
+            for line in f:
+                parts = line.split()
+
+                filepath = parts[0]
+                mask_vec = parts[1:]
+
+                file_labels.append([joinpath(data_dir, filepath), map(int, mask_vec)])
+
+        if max_doc_len is None:
+            assert threshold is not None, 'max_doc_len and threshold cannot be both None'
+            max_doc_len, thre_hist = get_doc_len(file_labels, threshold=threshold)
+            print('=====>> Using doc_len as {} with accumulated histogram {:g}\n'.format(max_doc_len, thre_hist))
+
+        if shuffle:
+            random.shuffle(file_labels)
+
+        self.vocab_processor = learn.preprocessing.VocabularyProcessor(max_doc_len, min_frequency=3)
+
+        # visit all json files, extract X and Y
+        X, Y = [], []
+        for i, (filepath, label_vec) in enumerate(file_labels):
+            assert os.path.exists(filepath), 'file not found %s' % filepath
+
+            nc = NoteContainer(filepath, mode=1)
+            text_one = nc.fields_asText()[:max_doc_len]
+
+            X.append(text_one)
+            Y.append(label_vec)
+
+        self.X = np.array(list(self.vocab_processor.fit_transform(X)))
+        self.Y = np.array(Y, dtype=np.float32)
+
+        self.vocab_size = len(self.vocab_processor.vocabulary_)
+        self.max_doc_len = max_doc_len
+        self.partition_ind = int(self.X.shape[0] * self.data_partition)
+        self.num_class = self.Y.shape[1]
+
+        assert self.vocab_size > 100
+        print("Vocabulary Size       : {:d}".format(self.vocab_size))
+
+    def load_from_mat(self, mat_dir):
+        assert os.path.isdir(mat_dir)
+        self.X = np.load(joinpath(mat_dir, 'X.npy'))
+        self.Y = np.load(joinpath(mat_dir, 'Y.npy'))
+        self.vocab_processor = learn.preprocessing.VocabularyProcessor.restore(joinpath(mat_dir, 'vocab'))
+
+        self.vocab_size = len(self.vocab_processor.vocabulary_)
+        self.max_doc_len = self.X.shape[1]
+        self.partition_ind = int(self.X.shape[0] * self.data_partition)
+        self.num_class = self.Y.shape[1]
+
+    def batcher(self, train=True, batch_size=None):
+        bsize = batch_size if batch_size else self.batch_size
+        if train:
+            bias = 0
+            data_size = self.partition_ind
+            num_batches = DataLoader.compute_numOf_batch(data_size, bsize)
+        else:
+            bias = self.partition_ind
+            data_size = self.X.shape[0] - self.partition_ind
+            num_batches = DataLoader.compute_numOf_batch(data_size, bsize)
+
+        while True:
+            for batch_num in range(num_batches):
+                start_index = bias + batch_num * bsize
+                end_index = bias + min((batch_num + 1) * bsize, bias + data_size)
+                is_epochComplete = batch_num + 1 == num_batches
+
+                x_batch, y_batch = self.get_chunk(start_index, end_index)
+
+                yield x_batch, y_batch, batch_num, is_epochComplete
+
+    def get_chunk(self, start_index, end_index):
+        return self.X[start_index:end_index], self.Y[start_index:end_index]
+
+    @staticmethod
+    def compute_numOf_batch(total_size, batch_size):
+        return int((total_size - 1) / batch_size) + 1
+
+    def save_mat(self, mat_dir):
+        assert self.X and self.Y and self.vocab_processor
+        makedir(mat_dir)
+        np.save(joinpath(mat_dir, 'X'), self.X)
+        np.save(joinpath(mat_dir, 'Y'), self.Y)
+        self.vocab_processor.save(joinpath(mat_dir, 'vocab'))
 
 
 def get_doc_len(file_labels, threshold=0.8):
-
     doc_lens = []
     for filepath, _ in file_labels:
         assert os.path.isfile(filepath), 'file not found at %s' % filepath
@@ -30,198 +142,87 @@ def get_doc_len(file_labels, threshold=0.8):
     return thre_edge, thre_hist
 
 
-def load_mimiciii_adMed(dataset_dir, file_labels_fn, adMed_file_labels_fn, max_doc_len=None, threshold=None):
-    # return two lists: examples and labels
-    # examples is a list of strings of the same number of words, labels is a list of label one hot list
-    filename = dataset_dir + file_labels_fn
-    f = open(filename, 'r').read().split('\n')
-    file_labels = []
-    for line in f:
-        if not line: continue
-        parts = line.split(',')
-        if len(parts) != 2:
-            print(len(parts), parts[0])
-        assert len(parts) == 2, '[Error] len(parts):{}, parts[0]:{}'.format(len(parts), parts[0])
-        file_labels.append([parts[0].strip(), [int(float(i)) for i in parts[1].split()]])
-
-    num_adMed_labels = None
-    filename = dataset_dir + adMed_file_labels_fn
-    f = open(filename, 'r').read().split('\n')
-    file_adMed_labels = {}
-    for line in f:
-        if not line: continue
-        parts = line.split(',')
-        if len(parts) != 2:
-            print(len(parts), parts[0])
-        assert len(parts) == 2, '[Error] len(parts):{}, parts[0]:{}'.format(len(parts), parts[0])
-        file_adMed_labels[parts[0].split('/')[-1].strip()] = [int(float(i)) for i in parts[1].split()]
-        if num_adMed_labels is None: num_adMed_labels = len(parts[1].split())
-
-    if max_doc_len is None:
-        if threshold is None: threshold = 0.7
-        print('=====>> Computing doc_len with threshold as {}'.format(threshold))
-        max_doc_len, thre_hist = get_doc_len(dataset_dir, [item[0] for item in file_labels], threshold=threshold)
-        print('=====>> Using doc_len as {} with accumulated histogram {:g}\n'.format(max_doc_len, thre_hist))
-
-    examples, adMed_labels, labels, count = [], [], [], 0
-    for i, (filename, label_vec) in enumerate(file_labels):
-        filepath = dataset_dir + filename
-        if not os.path.exists(filepath): continue
-        text_one = get_admission_text_from_json(filepath)
-        text_one = ' '.join(text_one.split()[:max_doc_len])
-        examples.append(text_one)
-        labels.append(label_vec)
-        if filename.split('/')[-1].strip() in file_adMed_labels:
-            adMed_labels.append(file_adMed_labels[filename.split('/')[-1].strip()])
-            count += 1
-        else:
-            adMed_labels.append([0] * num_adMed_labels)
-    print('[INFO] Among {} samples, {} have admission medications'.format(len(file_labels), count))
-    return examples, adMed_labels, labels, max_doc_len
-
-
-def load_mimiciii(dataset_dir, file_labels_fn, max_doc_len=None, threshold=0.7):
+def load_data(data_dir, labelfile_path, vocab_path, max_doc_len=None, threshold=0.7, shuffle=True):
     """
+    main method for obtaining dataset
     
     input
     -----
-    
-    dataset_dir: 
-        path to dataset folder
-    
-    file_labels_fn:
-        path to index file whose each line is formatted as: <path-to-json>, <label-mask-vector>
-        for example: ./abc/123.json, 0.0 0.0 ... 1.0 ... 0.0
-    
+    data_dir: 
+        directory containing the dataset
+    labelfile_path:
+        path to index file containing label and filepath
+    vocab_path:
+        previous VocabularyProcessor save path, if None then one is created at that path
+    max_doc_len:
+        max num of WORDS allowed in doc, if None then inferred by threshold
+    threshold:
+        threshold of distribution of doc length with which we infer the max_doc_len
+    shuffle:
+        set true to shuffle data when loading
     
     output
     -----
+    X:
+        np.int64, num_samples * max_doc_len 
+    Y:
+        np.float32, num_samples * num_classes
+    max_doc_len:
+        max num of WORDS allowed in doc    
     
-    examples: 
-        list of strings of the same number of words
-        
-    labels:
-        list of label one hot list
-        
     """
 
-    # filename = dataset_dir + file_labels_fn
-    # f = open(filename, 'r').read().split('\n')
-    #
-    # file_labels = []
-    # for line in f:
-    #     if not line:
-    #         continue
-    #
-    #     parts = line.split(',')
-    #
-    #     if len(parts) != 2:
-    #         print(len(parts), parts[0])
-    #     assert len(parts) == 2, '[Error] len(parts):{}, parts[0]:{}'.format(len(parts), parts[0])
-    #
-    #     if 'notes_json_all_fields' not in parts[0].strip():
-    #         modified_filename = parts[0].strip().replace('notes_json', 'notes_json_all_fields')
-    #     file_labels.append([modified_filename, [int(float(i)) for i in parts[1].split()]])
-    #
-    # if max_doc_len is None:
-    #
-    #     threshold = threshold if threshold else 0.7
-    #
-    #     print('=====>> Computing doc_len with threshold as {}'.format(threshold))
-    #
-    #     max_doc_len, thre_hist = get_doc_len(dataset_dir, [item[0] for item in file_labels], threshold=threshold)
-    #
-    #     print('=====>> Using doc_len as {} with accumulated histogram {:g}\n'.format(max_doc_len, thre_hist))
-    #
-    # # visit all json files, extract X and Y
-    # examples, labels = [], []
-    # for i, (filepath, label_vec) in enumerate(file_labels):
-    #     filepath = dataset_dir + filepath
-    #
-    #     if not os.path.exists(filepath):
-    #         continue
-    #
-    #     text_one = get_admission_text_from_json(filepath)
-    #     text_one = ' '.join(text_one.split()[:max_doc_len])
-    #
-    #     examples.append(text_one)
-    #     labels.append(label_vec)
-
-    assert os.path.isfile(file_labels_fn), 'index file not found at %s' % file_labels_fn
+    assert os.path.isfile(labelfile_path), 'index file not found at %s' % labelfile_path
 
     file_labels = []
-    with open(file_labels_fn) as f:
+    with open(labelfile_path) as f:
         for line in f:
             parts = line.split()
 
             filepath = parts[0]
             mask_vec = parts[1:]
 
-            file_labels.append([joinpath(dataset_dir, filepath), map(int, mask_vec)])
+            file_labels.append([joinpath(data_dir, filepath), map(int, mask_vec)])
 
     if max_doc_len is None:
+        assert threshold is not None, 'max_doc_len and threshold cannot be both None'
         max_doc_len, thre_hist = get_doc_len(file_labels, threshold=threshold)
         print('=====>> Using doc_len as {} with accumulated histogram {:g}\n'.format(max_doc_len, thre_hist))
 
+    if shuffle:
+        random.shuffle(file_labels)
+
+    if vocab_path and os.path.isfile(vocab_path):
+        print '=====>> vocab file found'
+        vocab_processor = learn.preprocessing.VocabularyProcessor.restore(vocab_path)
+        assert len(vocab_processor.vocabulary_) > 100
+        save_flag = False
+    else:
+        print '=====>> vocab file not found, creating new one...'
+        vocab_processor = learn.preprocessing.VocabularyProcessor(max_doc_len, min_frequency=3)
+        save_flag = True
+
     # visit all json files, extract X and Y
-    examples, labels = [], []
+    X, Y = [], []
     for i, (filepath, label_vec) in enumerate(file_labels):
         assert os.path.exists(filepath), 'file not found %s' % filepath
 
         nc = NoteContainer(filepath, mode=1)
         text_one = nc.fields_asText()[:max_doc_len]
 
-        examples.append(text_one)
-        labels.append(label_vec)
+        X.append(text_one)
+        Y.append(label_vec)
 
-    return examples, labels, max_doc_len
+    if save_flag:
+        vocab_processor.fit(X)
+        assert len(vocab_processor.vocabulary_) > 100
+        vocab_processor.save(vocab_path)
 
+    X = np.array(list(vocab_processor.transform(X)))
+    Y = np.array(Y, dtype=np.float32)
+    print("Vocabulary Size       : {:d}".format(len(vocab_processor.vocabulary_)))
 
-def load_data(dataset_dir, file_labels_fn, max_doc_len=None, load_adMed=False, adMed_file_labels_fn=None,
-              threshold=0.7):
-    """
-    main method for obtaining dataset
-    
-    input
-    -----
-    
-    TODO
-    
-    output
-    -----
-    x:
-        ?
-        
-    y:
-        (num_samples, num_classes)
-        
-    max_doc_len:
-        ?
-        
-    np.array(num_samples, max_char_len), np.array(num_samples, num_classes) ??
-    
-    """
-
-    if not load_adMed:
-        examples, labels, max_doc_len = load_mimiciii(dataset_dir=dataset_dir,
-                                                      file_labels_fn=file_labels_fn,
-                                                      max_doc_len=max_doc_len,
-                                                      threshold=threshold)
-        x = examples
-        y = np.array(labels, dtype=np.float32)
-        return x, y, max_doc_len
-
-    else:
-        assert adMed_file_labels_fn, '[Error] Must provide adMed_file_labels_fn file name if set load_adMed as true'
-        examples, adMed_labels, labels, max_doc_len = load_mimiciii_adMed(dataset_dir=dataset_dir,
-                                                                          file_labels_fn=file_labels_fn,
-                                                                          adMed_file_labels_fn=adMed_file_labels_fn,
-                                                                          max_doc_len=max_doc_len,
-                                                                          threshold=threshold)
-        x = examples
-        adMed_labels = np.array(adMed_labels, np.float32)
-        y = np.array(labels, dtype=np.float32)  #
-        return x, adMed_labels, y, max_doc_len
+    return X, Y, max_doc_len
 
 
 def batch_iter(x, y, batch_size, shuffle=True):
@@ -258,7 +259,7 @@ def batch_iter(x, y, batch_size, shuffle=True):
         for batch_num in range(num_batches_per_epoch):
             start_index = batch_num * batch_size
             end_index = min((batch_num + 1) * batch_size, data_size)
-            is_epochComplete = batch_num+1 == num_batches_per_epoch
+            is_epochComplete = batch_num + 1 == num_batches_per_epoch
 
             x_batch, y_batch = get_batched(x_shuffled, y_shuffled, start_index, end_index)
 
@@ -275,40 +276,7 @@ def get_batched(x, y, start_index, end_index):
     return x_batch, y_batch
 
 
-def batch_iter_adMed(x, y, admed, batch_size, num_epochs, shuffle=True):
-    """
-    input (shuffled): x: np.array(num_samples, max_doc_len) integer vector, y: (num_samples, num_classes)
-    return: x_batch: np.array(batch_size, max_doc_len), y_batch: np.array(batch_size, num_classes)
-    """
-    data_size = len(x)  # array can have len()
-    num_batches_per_epoch = int((data_size - 1) / batch_size) + 1
-    for epoch in range(num_epochs):
-        print("In epoch >> " + str(epoch))
-        print("num batches per epoch is: " + str(num_batches_per_epoch))
-        # Shuffle the data at each epoch
-        if shuffle:
-            shuffle_indices = np.random.permutation(np.arange(data_size))
-            x_shuffled = x[shuffle_indices]
-            y_shuffled = y[shuffle_indices]
-            admed_shuffled = admed[shuffle_indices]
-        else:
-            x_shuffled = x  # np.array(num_samples, 1014)
-            y_shuffled = y  # np.array(num_samples, 2)
-            admed_shuffled = admed
-        for batch_num in range(num_batches_per_epoch):
-            start_index = batch_num * batch_size
-            end_index = min((batch_num + 1) * batch_size, data_size)
-            x_batch, y_batch, admed_batch = get_batched_adMed(x_shuffled, y_shuffled, admed_shuffled, start_index,
-                                                              end_index)
-            yield x_batch, y_batch, admed_batch  # [np.array(batch_size,max_doc_len), np.array(batch_size, num_classes))]
-
-
-def get_batched_adMed(x, y, admed, start_index, end_index):
-    """
-    # input: x : np.array(num_samples, max_doc_len), y : np.array(num_samples, num_classes), batch_start_index, batch_end_index
-    # return: x_batch: np.array(batch_size, max_doc_len), y_batch: np.array(batch_size, num_classes)
-    """
-    x_batch = x[start_index:end_index]
-    y_batch = y[start_index:end_index]
-    admed_batch = admed[start_index:end_index]
-    return x_batch, y_batch, admed_batch
+if __name__ == '__main__':
+    loader = DataLoader(0.9, 24)
+    loader.load_from_text('../uni_containers_tmp', '../label_index')
+    loader.save_mat('../mat_data')
