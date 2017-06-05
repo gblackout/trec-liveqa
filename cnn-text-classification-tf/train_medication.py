@@ -4,11 +4,39 @@ import os
 from os.path import join as joinpath
 from progressbar import ProgressBar
 from utils.misc import linesep, get_output_folder, makedir
+from utils.visualization import prf_summary, output_summary
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import tensorflow as tf, numpy as np
 from sklearn.metrics import jaccard_similarity_score
 import preprocess_mimiciii
 from text_cnn import TextCNN
+
+
+def prf(y_true, y_pred):
+    """
+    input
+    -----
+    y_true:
+        n_samples * n_class binary mat
+    y_pred:
+        n_samples * n_class binary mat
+    output
+    -----
+        3 * n_class float mat: 1st row is precision, 2nd recall and 3rd f1
+    """
+    numOf_class = y_true.shape[1]
+
+    hits = np.sum(np.logical_and(y_true>0, y_pred>0), axis=0)
+    true_sum = y_true.sum(axis=0)
+    pred_sum = y_pred.sum(axis=0)
+
+    res = [np.zeros(numOf_class, dtype=np.float32) for _ in xrange(3)]
+    for i in xrange(numOf_class):
+        res[0][i] = p = hits[i] / pred_sum[i] if pred_sum[i] != 0 else 0
+        res[1][i] = r = hits[i] / true_sum[i] if true_sum[i] != 0 else 0
+        res[2][i] = 2*p*r / (p+r) if (p+r) != 0 else 0
+
+    return res
 
 
 def get_prediction_sigmoid(scores, threshold=0.5):
@@ -139,11 +167,25 @@ if __name__ == '__main__':
     test_mean_loss_pd = tf.placeholder(tf.float32, shape=None, name="test_mean_loss")
     test_mean_accuracy_pd = tf.placeholder(tf.float32, shape=None, name="test_mean_accuracy")
     test_jaccard_pd = tf.placeholder(tf.float32, shape=None, name="test_jaccard")
+    # images
+    test_precision_pd = tf.placeholder(tf.unit8, shape=None, name='test_precision')
+    test_recall_pd = tf.placeholder(tf.unit8, shape=None, name='test_recall')
+    test_fscore_pd = tf.placeholder(tf.unit8, shape=None, name='test_fscore')
+    test_dist_pd = tf.placeholder(tf.unit8, shape=None, name='test_distribution')
+    # image history arrays
+    prf_hist = None
+    dist_hist = None
 
     test_loss_summary = tf.summary.scalar("test_mean_loss", test_mean_loss_pd)
     test_acc_summary = tf.summary.scalar("test_mean_accuracy", test_mean_accuracy_pd)
     test_jaccard_summary = tf.summary.scalar("test_jaccard", test_jaccard_pd)
-    test_summary_op = tf.summary.merge([test_loss_summary, test_acc_summary, test_jaccard_summary])
+    test_precision_summary = tf.summary.image('test_precision', test_precision_pd)
+    test_recall_summary = tf.summary.image('test_recall', test_recall_pd)
+    test_fscore_summary = tf.summary.image('test_fscore', test_fscore_pd)
+    test_dist_summary = tf.summary.image('test_distribution', test_dist_pd)
+    test_summary_op = tf.summary.merge([test_loss_summary, test_acc_summary, test_jaccard_summary,
+                                        test_precision_summary, test_recall_summary, test_fscore_summary,
+                                        test_dist_summary])
 
     # init writer and saver
     summary_writer = tf.summary.FileWriter(summary_dir, sess.graph)
@@ -156,7 +198,7 @@ if __name__ == '__main__':
         saver.restore(sess, tf.train.latest_checkpoint(FLAGS.load_model_folder))
 
 
-    def evaluate(d_loader):
+    def evaluate(d_loader, prf_hist, dist_hist):
         batch_size = 500
         data_size = d_loader.X.shape[0] - d_loader.partition_ind
         num_batches = d_loader.compute_numOf_batch(data_size, batch_size)
@@ -182,18 +224,30 @@ if __name__ == '__main__':
                 break
         pbar.finish()
 
-        predictions = get_prediction_sigmoid(dev_scores)
-        jaccard_sim = jaccard_similarity_score(d_loader.Y[d_loader.partition_ind:, :], predictions)
+        y_pred = get_prediction_sigmoid(dev_scores)
+        y_true = d_loader.Y[d_loader.partition_ind:, :]
+
+        jaccard_sim = jaccard_similarity_score(y_true, y_pred)
+        prf_ls = prf(y_true, y_pred)
+        prf_images, prf_hist = prf_summary(prf_hist, prf_ls)
+        dist_image, dist_hist = output_summary(dist_hist, y_pred)
+
         summaries = sess.run(test_summary_op,
                              {test_mean_loss_pd: np.mean(losses),
                               test_mean_accuracy_pd: np.mean(acc),
-                              test_jaccard_pd: jaccard_sim})
+                              test_jaccard_pd: jaccard_sim,
+                              test_precision_pd: np.expand_dims(prf_images[0], axis=0),
+                              test_recall_pd: np.expand_dims(prf_images[1], axis=0),
+                              test_fscore_pd: np.expand_dims(prf_images[2], axis=0),
+                              test_dist_pd: np.expand_dims(dist_image, axis=0)})
 
         summary_writer.add_summary(summaries, cur_step)
 
+        return prf_hist, dist_hist
+
 
     linesep('initial model evaluate')
-    evaluate(data_loader)
+    prf_hist, dist_hist = evaluate(data_loader, prf_hist, dist_hist)
 
     epoch_cnt = 0
     eval_bystep = FLAGS.evaluate_freq > 0
@@ -221,7 +275,7 @@ if __name__ == '__main__':
             pbar.finish()
 
             linesep('evaluate model at step %i' % cur_step)
-            evaluate(data_loader)
+            prf_hist, dist_hist = evaluate(data_loader, prf_hist, dist_hist)
 
             pbar.start()
             pbar.update(batch_num+1)
@@ -232,7 +286,7 @@ if __name__ == '__main__':
             # eval model in epoch mode
             if not eval_bystep and (epoch_cnt % (-FLAGS.evaluate_freq) == 0):
                 linesep('evaluate model at epoch %i' % epoch_cnt)
-                evaluate(data_loader)
+                prf_hist, dist_hist = evaluate(data_loader, prf_hist, dist_hist)
 
             # save model
             if epoch_cnt % FLAGS.checkpoint_freq == 0:
