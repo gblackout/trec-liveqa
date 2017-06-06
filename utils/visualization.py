@@ -46,7 +46,7 @@ def surface_mat(Z):
     plt.tight_layout()
 
     mat_fig = fig2data(fig)
-    plt.close(mat_fig)
+    plt.close(fig)
 
     return mat_fig
 

@@ -117,7 +117,7 @@ if __name__ == '__main__':
         data_loader.load_from_mat(FLAGS.matdata_dir)
         print '======>found mat data in %s' % FLAGS.matdata_dir
     except:
-        print '======>mat data not found in %s loading from container in ' % FLAGS.dataset_dir
+        print '======>mat data not found in %s loading from container in ' % FLAGS.matdata_dir
         data_loader.load_from_text(FLAGS.dataset_dir, FLAGS.file_labels_fn, FLAGS.stpwd_path,
                                    max_doc_len=FLAGS.max_doc_len)
         print '======>saving mat data to %s' %FLAGS.matdata_dir
