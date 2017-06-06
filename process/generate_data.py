@@ -9,6 +9,7 @@ import traceback
 import pprint
 import re
 from collections import Counter
+import numpy as np
 
 id_template = ["ROW_ID",
                "SUBJECT_ID",
@@ -942,6 +943,92 @@ def gen_label_index(container_dir, med_dict_path, numOf_label=50):
             print >> f, nc.get_admID(), ' '.join(med_mask)
 
 
+def gen_hypertension_label_index(uni_con_path, med_dict_path):
+    if os.path.isfile('hyper_label_index'):
+        os.remove('hyper_label_index')
+
+    med_dict = {}
+    med_reg = re.compile(r'\w+')
+    type_cnt = 0
+    with open(med_dict_path) as f:
+        for line in f:
+            generic_name, brand_names = line.split(':')
+            brand_names = [e.strip().lower() for e in brand_names.split(',') if med_reg.search(e)]
+            med_dict[generic_name.lower()] = [brand_names, type_cnt]
+            type_cnt += 1
+
+    def findmed(meddict, seq):
+        cnter = Counter()
+        for k in meddict:
+            for e in [k] + meddict[k][0]:
+                if e in seq:
+                    cnter[k] += 1
+        return cnter
+
+    numOf_med = len(med_dict)
+
+    for i, filename in enumerate(allfilenames(uni_con_path)):
+        print '%i\t / \t%i' % (i, 52682), filename
+
+        nc = NoteContainer(filename, mode=1)
+        dismed_str = ' '.join(nc.discharge_medications).lower() if nc.discharge_medications else ''
+
+        dis_cnter = findmed(med_dict, dismed_str)
+        med_mask = [0]*numOf_med
+        for dis_k in dis_cnter:
+            med_mask[med_dict[dis_k][1]] = 1
+
+        with open('hyper_label_index', 'a') as f:
+            print >> f, nc.get_admID(), ' '.join(med_mask)
+
+
+    # med_dict = pickle.load(open('med_dict'))
+    # med_list = sorted([(k, v) for k, v in med_dict.iteritems()], key=lambda x: x[1][0])
+    # x_ticks, allcnts = zip(*med_list)
+    # type_list, adm_y, dis_y = zip(*allcnts)
+    # x = range(len(x_ticks))
+    #
+    # print 1
+    #
+    # fig, ax1 = plt.subplots(figsize=(30, 10))
+    #
+    # ax1.plot(x, adm_y, 'b-')
+    # ax1.set_xlabel('medications')
+    # plt.xticks(x, x_ticks, rotation=50, ha='right')
+    # plt.setp(ax1.get_xticklabels(), fontsize=10)
+    #
+    # print 1.5
+    # colormap = plt.cm.gist_ncar
+    #
+    # import random
+    #
+    # colors = [colormap(i) for i in np.linspace(0, 0.9, len(set(type_list)))]
+    # random.shuffle(colors)
+    # cnt = 0
+    # for xtick in ax1.get_xticklabels():
+    #     xtick.set_color(colors[med_dict[x_ticks[cnt]][0]])
+    #     cnt += 1
+    #
+    # print 2
+    #
+    # # Make the y-axis label, ticks and tick labels match the line color.
+    # ax1.set_ylabel('admission frequency', color='b')
+    # ax1.tick_params('y', colors='b')
+    # ax1.xaxis.grid(True)
+    #
+    # ax2 = ax1.twinx()
+    # ax2.plot(x, dis_y, 'r-')
+    # ax2.set_ylabel('discharge frequency', color='r')
+    # ax2.tick_params('y', colors='r')
+    #
+    # print 3
+    #
+    # fig.tight_layout()
+    # # plt.show()
+    # plt.savefig('123.png')
+    #
+    # print 4
+
 
 def makedir(_path, remove_old=False):
     if os.path.isdir(_path):
@@ -962,7 +1049,7 @@ if __name__ == '__main__':
 
     # rawtext_path = 'notes/'
 
-    output_path = 'uni_containers_tmp/'
+    output_path = '../uni_containers_tmp/'
     # output_path = '../data/examples/data_as_con/'
 
     # container_path = '../data/examples/container_no_content/'
@@ -977,7 +1064,9 @@ if __name__ == '__main__':
     # overlap_byage(output_path)
     # overlap_bycomplaint(output_path)
 
-    gen_label_index(output_path, 'all_meds_freq')
+    # gen_label_index(output_path, 'all_meds_freq')
+
+    gen_hypertension_label_index(output_path, '../hypertension_med_list')
 
     # foo2()
     # foo2_com()

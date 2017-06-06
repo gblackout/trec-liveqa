@@ -46,7 +46,7 @@ def surface_mat(Z):
     plt.tight_layout()
 
     mat_fig = fig2data(fig)
-    plt.close(fig)
+    plt.close(mat_fig)
 
     return mat_fig
 
@@ -100,7 +100,6 @@ def curr_prf(population, prf):
     ax2.tick_params('y', colors='b')
 
     fig.tight_layout()
-
     mat_fig = fig2data(fig)
     plt.close(fig)
 
