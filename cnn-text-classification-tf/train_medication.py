@@ -69,10 +69,10 @@ if __name__ == '__main__':
     # ==================== Parameters ==============================
 
     # paths
-    tf.flags.DEFINE_string("file_labels_fn", '../label_index', "")
+    tf.flags.DEFINE_string("file_labels_fn", '../hyper_label_index', "")
     tf.flags.DEFINE_string("stpwd_path", '../stpwd', "")
     tf.flags.DEFINE_string("dataset_dir", '../uni_containers_tmp', "")
-    tf.flags.DEFINE_string("matdata_dir", '../mat_data', "")
+    tf.flags.DEFINE_string("matdata_dir", '../hyper_mat_data', "")
     tf.flags.DEFINE_string("output_dir", 'out', "main output directory")
     tf.flags.DEFINE_string("log_path", 'log_file', "")
     tf.flags.DEFINE_integer("load_model", 0, "load model file")
@@ -168,6 +168,7 @@ if __name__ == '__main__':
     test_mean_accuracy_pd = tf.placeholder(tf.float32, shape=None, name="test_mean_accuracy")
     test_jaccard_pd = tf.placeholder(tf.float32, shape=None, name="test_jaccard")
     test_avg_f_pd = tf.placeholder(tf.float32, shape=None, name="test_avg_f")
+    test_weighted_f_pd = tf.placeholder(tf.float32, shape=None, name="test_weighted_f")
     # images
     test_precision_pd = tf.placeholder(tf.uint8, shape=None, name='test_precision')
     test_recall_pd = tf.placeholder(tf.uint8, shape=None, name='test_recall')
@@ -181,15 +182,17 @@ if __name__ == '__main__':
     test_loss_summary = tf.summary.scalar("test_mean_loss", test_mean_loss_pd)
     test_acc_summary = tf.summary.scalar("test_mean_accuracy", test_mean_accuracy_pd)
     test_jaccard_summary = tf.summary.scalar("test_jaccard", test_jaccard_pd)
-    test_avg_f_summary = tf.summary.scalar("test_avg_f_pd", test_avg_f_pd)
+    test_avg_f_summary = tf.summary.scalar("test_avg_f", test_avg_f_pd)
+    test_weighted_f_summary = tf.summary.scalar("test_weighted_f", test_weighted_f_pd)
     test_precision_summary = tf.summary.image('test_precision', test_precision_pd)
     test_recall_summary = tf.summary.image('test_recall', test_recall_pd)
     test_fscore_summary = tf.summary.image('test_fscore', test_fscore_pd)
     test_dist_summary = tf.summary.image('test_distribution', test_dist_pd)
     test_curr_prf_summary = tf.summary.image('test_curr_prf', test_curr_prf_pd)
     test_summary_op = tf.summary.merge([test_loss_summary, test_acc_summary, test_jaccard_summary,
-                                        test_avg_f_summary, test_precision_summary, test_recall_summary,
-                                        test_fscore_summary, test_dist_summary, test_curr_prf_summary])
+                                        test_avg_f_summary, test_weighted_f_summary, test_precision_summary,
+                                        test_recall_summary, test_fscore_summary, test_dist_summary,
+                                        test_curr_prf_summary])
 
     # init writer and saver
     summary_writer = tf.summary.FileWriter(summary_dir, sess.graph)
@@ -237,11 +240,16 @@ if __name__ == '__main__':
         dist_image, dist_hist = output_summary(dist_hist, y_pred)
         curr_prf_image = curr_prf(d_loader.get_med_freq(), prf_ls)
 
+        population = d_loader.get_med_freq()
+        weights = population / np.sum(population)
+        weighted_f = weights * prf_ls[2]
+
         summaries = sess.run(test_summary_op,
                              {test_mean_loss_pd: np.mean(losses),
                               test_mean_accuracy_pd: np.mean(acc),
                               test_jaccard_pd: jaccard_sim,
                               test_avg_f_pd: np.mean(prf_ls[2]),
+                              test_weighted_f_pd: np.sum(weighted_f),
                               test_precision_pd: np.expand_dims(prf_images[0], axis=0),
                               test_recall_pd: np.expand_dims(prf_images[1], axis=0),
                               test_fscore_pd: np.expand_dims(prf_images[2], axis=0),

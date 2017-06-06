@@ -72,45 +72,6 @@ def bar():
 
 def hypertension_drugs(uni_con_path):
 
-    # med_dict = {}
-    # med_reg = re.compile(r'\w+')
-    # type_cnt = 0
-    # with open('../hypertension_med_list') as f:
-    #     for line in f:
-    #         generic_name, brand_names = line.split(':')
-    #         brand_names = [e.strip().lower() for e in brand_names.split(',') if med_reg.search(e)]
-    #         med_dict.update([(e, [type_cnt, 0, 0]) for e in brand_names + [generic_name.lower()]])
-    #         type_cnt += 1
-    #
-    # pprint.pprint(med_dict)
-    #
-    # for i, filename in enumerate(allfilenames(uni_con_path)):
-    #     print '%i\t / \t%i' % (i, 52682), filename
-    #
-    #     nc = NoteContainer(filename, mode=1)
-    #     admed_str = ' '.join(nc.admission_medications).lower() if nc.admission_medications else ''
-    #     dismed_str = ' '.join(nc.discharge_medications).lower() if nc.discharge_medications else ''
-    #
-    #     for k in med_dict:
-    #         if k in admed_str:
-    #             med_dict[k][1] += 1
-    #         if k in dismed_str:
-    #             med_dict[k][2] += 1
-    #
-    # pickle.dump(med_dict, open('med_dict', 'w'))
-
-    med_dict = {}
-    med_reg = re.compile(r'\w+')
-    type_cnt = 0
-    with open('./hypertension_med_list') as f:
-        for line in f:
-            generic_name, brand_names = line.split(':')
-            brand_names = [e.strip().lower() for e in brand_names.split(',') if med_reg.search(e)]
-            med_dict[generic_name.lower()] = [brand_names, type_cnt]
-            type_cnt += 1
-
-    corr = np.zeros((len(med_dict),len(med_dict)), dtype=np.float32)
-
     def findmed(meddict, seq):
         cnter = Counter()
         for k in meddict:
@@ -119,25 +80,75 @@ def hypertension_drugs(uni_con_path):
                     cnter[k] += 1
         return cnter
 
+    med_dict = {}
+    med_reg = re.compile(r'\w+')
+    with open('hypertension_med_list') as f:
+        for line in f:
+            generic_name, brand_names = line.split(':')
+            brand_names = [(e.split()[0]).strip().lower() for e in brand_names.split(',') if med_reg.search(e)]
+            med_dict[generic_name.lower()] = [brand_names, 0]
+
+    pprint.pprint(med_dict)
 
     for i, filename in enumerate(allfilenames(uni_con_path)):
         print '%i\t / \t%i' % (i, 52682), filename
 
         nc = NoteContainer(filename, mode=1)
-        admed_str = ' '.join(nc.admission_medications).lower() if nc.admission_medications else ''
         dismed_str = ' '.join(nc.discharge_medications).lower() if nc.discharge_medications else ''
 
-        adm_cnter = findmed(med_dict, admed_str)
-        dis_cnter = findmed(med_dict, dismed_str)
+        for k in med_dict:
+            for e in [k] + med_dict[k][0]:
+                if e in dismed_str:
+                    med_dict[k][1] += 1
+                    break
 
-        for ad_k in adm_cnter:
-            x_ind = med_dict[ad_k][1]
-            for dis_k in dis_cnter:
-                y_ind = med_dict[dis_k][1]
-                corr[x_ind, y_ind] += 1
-
-    np.save('corr_arr', corr)
     pickle.dump(med_dict, open('med_dict', 'w'))
+    freq_ls = sorted([(k, v[1]) for k,v in med_dict.iteritems()], key=lambda x:x[1], reverse=True)
+    with open('hyper_med_freq', 'w') as f:
+        for k, v in freq_ls:
+            print >> f, k, v
+
+    pprint.pprint(med_dict)
+
+    # med_dict = {}
+    # med_reg = re.compile(r'\w+')
+    # type_cnt = 0
+    # with open('./hypertension_med_list') as f:
+    #     for line in f:
+    #         generic_name, brand_names = line.split(':')
+    #         brand_names = [e.strip().lower() for e in brand_names.split(',') if med_reg.search(e)]
+    #         med_dict[generic_name.lower()] = [brand_names, type_cnt]
+    #         type_cnt += 1
+    #
+    # corr = np.zeros((len(med_dict),len(med_dict)), dtype=np.float32)
+    #
+    # def findmed(meddict, seq):
+    #     cnter = Counter()
+    #     for k in meddict:
+    #         for e in [k] + meddict[k][0]:
+    #             if e in seq:
+    #                 cnter[k] += 1
+    #     return cnter
+    #
+    #
+    # for i, filename in enumerate(allfilenames(uni_con_path)):
+    #     print '%i\t / \t%i' % (i, 52682), filename
+    #
+    #     nc = NoteContainer(filename, mode=1)
+    #     admed_str = ' '.join(nc.admission_medications).lower() if nc.admission_medications else ''
+    #     dismed_str = ' '.join(nc.discharge_medications).lower() if nc.discharge_medications else ''
+    #
+    #     adm_cnter = findmed(med_dict, admed_str)
+    #     dis_cnter = findmed(med_dict, dismed_str)
+    #
+    #     for ad_k in adm_cnter:
+    #         x_ind = med_dict[ad_k][1]
+    #         for dis_k in dis_cnter:
+    #             y_ind = med_dict[dis_k][1]
+    #             corr[x_ind, y_ind] += 1
+    #
+    # np.save('corr_arr', corr)
+    # pickle.dump(med_dict, open('med_dict', 'w'))
 
 
     # med_dict = pickle.load(open('med_dict'))

@@ -200,8 +200,8 @@ class NoteContainer:
 
         for rawtext in [self.note] + (self.extnotes if self.extnotes else []):
 
-            matches = heading_reg.finditer(rawtext) # return an iterator
-            matches = [m for m in matches] # we want a list
+            matches = heading_reg.finditer(rawtext)  # return an iterator
+            matches = [m for m in matches]  # we want a list
 
             # filter out headings of no interest
             filtered_matches = []
@@ -209,7 +209,7 @@ class NoteContainer:
                 if not m:
                     continue
 
-                heading = rawtext[m.start(1):m.end(1)].strip().lower() # note it's 1 not 0
+                heading = rawtext[m.start(1):m.end(1)].strip().lower()  # note it's 1 not 0
 
                 if heading not in heading_lookup:
                     continue
@@ -218,11 +218,11 @@ class NoteContainer:
 
             numOf_matches = len(filtered_matches)
             for i, m in enumerate(filtered_matches):
-                heading = rawtext[m.start(1):m.end(1)].strip().lower() # note it's 1 not 0
+                heading = rawtext[m.start(1):m.end(1)].strip().lower()  # note it's 1 not 0
                 field_name = heading_lookup[heading]
 
                 # assuming the index starting right after : of a matching heading
-                content_start_ind = m.end(1)+1
+                content_start_ind = m.end(1) + 1
                 # assuming the index ending right before the next match of a heading (or end of string)
                 content_end_ind = len(rawtext) if i + 1 >= numOf_matches else filtered_matches[i + 1].start(0)
 
@@ -231,9 +231,9 @@ class NoteContainer:
                 # if match then append text to the class attribute, note that we use list since there can be multiple
                 if blank_match:
                     content = rawtext[content_start_ind:blank_match.start(0)]
-                    if self.__dict__[field_name]: # is not None
+                    if self.__dict__[field_name]:  # is not None
                         self.__dict__[field_name].append(content)
-                    else: # is None
+                    else:  # is None
                         self.__dict__[field_name] = [content]
 
     def extract_age(self):
@@ -508,7 +508,6 @@ def bar2(container_path):
         for e in set(cate_ls):
             cate_cnter[e][1] += 1
 
-
         for e in des_ls:
             if e in des_cnter:
                 des_cnter[e][0] += 1
@@ -518,7 +517,7 @@ def bar2(container_path):
         for e in set(des_ls):
             des_cnter[e][1] += 1
 
-    pprint.pprint(sorted([(k, v) for k, v in id_cnter.iteritems()], key=lambda x:x[1][1], reverse=True)[:50])
+    pprint.pprint(sorted([(k, v) for k, v in id_cnter.iteritems()], key=lambda x: x[1][1], reverse=True)[:50])
     pprint.pprint(sorted([(k, v) for k, v in cate_cnter.iteritems()], key=lambda x: x[1][1], reverse=True)[:10])
     pprint.pprint(sorted([(k, v) for k, v in des_cnter.iteritems()], key=lambda x: x[1][1], reverse=True)[:10])
 
@@ -567,18 +566,17 @@ def bar4():
 
     nc_ls = [NoteContainer(filename, mode=1) for filename in id_cnter['13033']]
 
-    nc_ls = sorted(nc_ls, key=lambda x:map(int, x.ID_fields['CHARTDATE'].split['-']))
+    nc_ls = sorted(nc_ls, key=lambda x: map(int, x.ID_fields['CHARTDATE'].split['-']))
 
     pprint.pprint([nc.ID_fields for nc in nc_ls])
 
-    print '='*80
+    print '=' * 80
 
     for nc in nc_ls:
         print nc.note[:500]
 
 
 def bar5(output_path):
-
     id_cnter = pickle.load(open('id_cnter'))
     cnt = 0
     dup_nc = 0
@@ -612,12 +610,12 @@ def bar6(uni_con_path):
             heading_dict.update(nc.raw_headings)
         except RuntimeError:
             traceback.print_exc()
-            with open('heading_log','a') as f:
+            with open('heading_log', 'a') as f:
                 print >> f, filename
 
     pickle.dump(heading_dict, open('heading_dict', 'w'))
 
-    pprint.pprint(sorted([(k,v) for k,v in heading_dict.iteritems()], key=lambda x:x[1], reverse=True)[:50])
+    pprint.pprint(sorted([(k, v) for k, v in heading_dict.iteritems()], key=lambda x: x[1], reverse=True)[:50])
     print 'total length:', len(heading_dict)
 
 
@@ -646,17 +644,17 @@ def bar8(uni_con_tmp):
     for ind in inds:
         nc = NoteContainer(filenames[ind], mode=1)
 
-        print '*'*80
-        print '*'*36, nc.get_admID(), '*'*36
+        print '*' * 80
+        print '*' * 36, nc.get_admID(), '*' * 36
         print '*' * 80, '\n'
 
         print nc.note
 
-        print '='*50
+        print '=' * 50
 
         for k in synonym:
 
-            print k,':'
+            print k, ':'
 
             if not nc.__dict__[k]:
                 print 'NULL'
@@ -666,13 +664,12 @@ def bar8(uni_con_tmp):
             for v in nc.__dict__[k]:
                 print v
 
-            print '-'*40
+            print '-' * 40
 
         print '\n\n\n'
 
 
 def bar9(uni_con_tmp):
-
     filenames = allfilenames(uni_con_tmp)
 
     complaint_dict = Counter()
@@ -689,7 +686,6 @@ def bar9(uni_con_tmp):
 
 
 def overlap_byage(uni_con_tmp):
-
     filenames = allfilenames(uni_con_tmp)
 
     med_reg = re.compile(r'^([a-z]+)[^0-9]*([0-9]+)$', flags=re.IGNORECASE)
@@ -729,7 +725,6 @@ def overlap_byage(uni_con_tmp):
             nc.extract_age()
         except RuntimeError:
             continue
-
 
         age = int(nc.age)
         age_cnt[age] += 1
@@ -775,7 +770,6 @@ def overlap_byage(uni_con_tmp):
 
 
 def overlap_bycomplaint(uni_con_tmp):
-
     filenames = allfilenames(uni_con_tmp)
 
     med_reg = re.compile(r'^([a-z]+)[^0-9]*([0-9]+)$', flags=re.IGNORECASE)
@@ -833,9 +827,8 @@ def foo2():
 
     fig, ax1 = plt.subplots()
 
-
-    age_ls = sorted([(k,v) for k,v in age_cnt.iteritems() if k < 100], key=lambda x:x[0])
-    x,y = zip(*age_ls)
+    age_ls = sorted([(k, v) for k, v in age_cnt.iteritems() if k < 100], key=lambda x: x[0])
+    x, y = zip(*age_ls)
 
     ax1.plot(x, y, 'b-.')
     ax1.set_xlabel('age')
@@ -844,7 +837,6 @@ def foo2():
     ax1.set_ylabel('population', color='b')
     ax1.tick_params('y', colors='b')
 
-
     res_dict = {}
     for age, score in res:
         if age in res_dict:
@@ -852,8 +844,8 @@ def foo2():
         else:
             res_dict[age] = [score]
 
-    res_seq = sorted([(k, np.mean(v)) for k,v in res_dict.iteritems() if k < 100], key=lambda x:x[0])
-    x,y = zip(*res_seq)
+    res_seq = sorted([(k, np.mean(v)) for k, v in res_dict.iteritems() if k < 100], key=lambda x: x[0])
+    x, y = zip(*res_seq)
 
     ax2 = ax1.twinx()
     ax2.plot(x, y, 'r-')
@@ -873,9 +865,8 @@ def foo2_com():
 
     fig, ax1 = plt.subplots()
 
-
-    com_ls = sorted([(k,v) for k,v in com_dict.iteritems() if v > 60], key=lambda x:x[1], reverse=True)
-    x_ticks,y = zip(*com_ls)
+    com_ls = sorted([(k, v) for k, v in com_dict.iteritems() if v > 60], key=lambda x: x[1], reverse=True)
+    x_ticks, y = zip(*com_ls)
     x = range(len(x_ticks))
 
     ax1.plot(x, y, 'b-.')
@@ -887,7 +878,6 @@ def foo2_com():
     ax1.set_ylabel('frequency', color='b')
     ax1.tick_params('y', colors='b')
 
-
     res_dict = {}
     for com, score in res:
         if com in res_dict:
@@ -895,8 +885,9 @@ def foo2_com():
         else:
             res_dict[com] = [score]
 
-    res_seq = sorted([(k, np.mean(v)) for k,v in res_dict.iteritems() if com_dict[k] > 60], key=lambda x:x[1], reverse=True)
-    _,y = zip(*res_seq)
+    res_seq = sorted([(k, np.mean(v)) for k, v in res_dict.iteritems() if com_dict[k] > 60], key=lambda x: x[1],
+                     reverse=True)
+    _, y = zip(*res_seq)
 
     ax2 = ax1.twinx()
     ax2.plot(x, y, 'r-')
@@ -943,19 +934,22 @@ def gen_label_index(container_dir, med_dict_path, numOf_label=50):
             print >> f, nc.get_admID(), ' '.join(med_mask)
 
 
-def gen_hypertension_label_index(uni_con_path, med_dict_path):
+def gen_hypertension_label_index(uni_con_path, med_dict_path, med_freq_path, numOf_class):
     if os.path.isfile('hyper_label_index'):
         os.remove('hyper_label_index')
 
+    old_med_dict = pickle.load(open(med_dict_path))
     med_dict = {}
-    med_reg = re.compile(r'\w+')
-    type_cnt = 0
-    with open(med_dict_path) as f:
+
+    med_cnt = 0
+    with open(med_freq_path) as f:
         for line in f:
-            generic_name, brand_names = line.split(':')
-            brand_names = [e.strip().lower() for e in brand_names.split(',') if med_reg.search(e)]
-            med_dict[generic_name.lower()] = [brand_names, type_cnt]
-            type_cnt += 1
+            med_name = line.split()[0]
+            med_dict[med_name] = old_med_dict[med_name]
+            med_dict[med_name][1] = med_cnt
+            med_cnt += 1
+            if med_cnt >= numOf_class:
+                break
 
     def findmed(meddict, seq):
         cnter = Counter()
@@ -965,8 +959,7 @@ def gen_hypertension_label_index(uni_con_path, med_dict_path):
                     cnter[k] += 1
         return cnter
 
-    numOf_med = len(med_dict)
-
+    nonzero_cnt = 0
     for i, filename in enumerate(allfilenames(uni_con_path)):
         print '%i\t / \t%i' % (i, 52682), filename
 
@@ -974,13 +967,19 @@ def gen_hypertension_label_index(uni_con_path, med_dict_path):
         dismed_str = ' '.join(nc.discharge_medications).lower() if nc.discharge_medications else ''
 
         dis_cnter = findmed(med_dict, dismed_str)
-        med_mask = [0]*numOf_med
+        med_mask = [0] * numOf_class
         for dis_k in dis_cnter:
             med_mask[med_dict[dis_k][1]] = 1
 
-        with open('hyper_label_index', 'a') as f:
-            print >> f, nc.get_admID(), ' '.join(med_mask)
+        if sum(med_mask) == 0:
+            continue
 
+        nonzero_cnt += 1
+        with open('hyper_label_index', 'a') as f:
+            print >> f, nc.get_admID(), ' '.join(map(str, med_mask))
+
+    pprint.pprint(med_dict)
+    print '!!!!!', nonzero_cnt
 
     # med_dict = pickle.load(open('med_dict'))
     # med_list = sorted([(k, v) for k, v in med_dict.iteritems()], key=lambda x: x[1][0])
@@ -1049,12 +1048,12 @@ if __name__ == '__main__':
 
     # rawtext_path = 'notes/'
 
-    output_path = '../uni_containers_tmp/'
+    output_path = 'uni_containers_tmp/'
     # output_path = '../data/examples/data_as_con/'
 
     # container_path = '../data/examples/container_no_content/'
     container_path = 'uni_containers/'
-
+    numOf_class = 8
 
     # bar7(container_path, output_path)
 
@@ -1066,7 +1065,7 @@ if __name__ == '__main__':
 
     # gen_label_index(output_path, 'all_meds_freq')
 
-    gen_hypertension_label_index(output_path, '../hypertension_med_list')
+    gen_hypertension_label_index(output_path, 'med_dict', 'hyper_med_freq', numOf_class)
 
     # foo2()
     # foo2_com()
@@ -1109,8 +1108,3 @@ if __name__ == '__main__':
     # for filename in allfilenames(output_path):
     #     nc = NoteContainer(filename, mode=1)
     #     print nc.ID_fields
-
-
-
-
-
