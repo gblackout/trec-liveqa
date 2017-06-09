@@ -219,7 +219,7 @@ if __name__ == '__main__':
 
         cur_step = tf.train.global_step(sess, global_step)
 
-        losses, dev_scores = [], [], []
+        losses, dev_scores = [], []
         pbar = ProgressBar(maxval=num_batches).start()
         for x_batch, y_batch, batch_num, is_epochComplete in d_loader.batcher(train=False, batch_size=batch_size):
             feed_dict = {cnn.input_x: x_batch,
