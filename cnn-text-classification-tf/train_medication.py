@@ -9,7 +9,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import tensorflow as tf, numpy as np
 from sklearn.metrics import jaccard_similarity_score
 import preprocess_mimiciii
-from text_cnn import TextCNN
+from text_cnn import TextCNN, TextCNN_V2
 
 
 def prf(y_true, y_pred):
@@ -83,10 +83,13 @@ if __name__ == '__main__':
 
     # Model Hyperparameters
     tf.flags.DEFINE_integer("embedding_dim", 128, "Dimensionality of character embedding (default: 128)")
-    tf.flags.DEFINE_string("filter_sizes", "3,4,5", "Comma-separated filter sizes (default: '3,4,5')")
     tf.flags.DEFINE_integer("num_filters", 128, "Number of filters per filter size (default: 128)")
-    tf.flags.DEFINE_float("dropout_keep_prob", 0.5, "Dropout keep probability (default: 0.5)")
+    tf.flags.DEFINE_string("filter_sizes", "3,4,5", "Comma-separated filter sizes (default: '3,4,5')")
+    tf.flags.DEFINE_integer("dense_size", 512, "size of the dense layer")
+    # regularization
+    tf.flags.DEFINE_float("dropout_keep_prob", 1.0, "Dropout keep probability (default: 0.5)")
     tf.flags.DEFINE_float("l2_reg_lambda", 0.0, "L2 regularization lambda (default: 0.0)")
+    # learning rate
     tf.flags.DEFINE_float("learning_rate", 0.01, "learning rate")
     tf.flags.DEFINE_float("learning_rate_decay", 0.9, "learning rate decay")
     tf.flags.DEFINE_float("decay_every_steps", 2000, "decay_every_steps")
@@ -143,12 +146,20 @@ if __name__ == '__main__':
 
     global_step = tf.Variable(0, name="global_step", trainable=False)
 
-    cnn = TextCNN(sequence_length=data_loader.max_doc_len, num_classes=data_loader.num_class,
-                  vocab_size=data_loader.vocab_size,
-                  embedding_size=FLAGS.embedding_dim,
-                  filter_sizes=map(int, FLAGS.filter_sizes.split(",")),
-                  num_filters=FLAGS.num_filters, multilabel=FLAGS.multilabel,
-                  pooling_filter_size=3, l2_reg_lambda=FLAGS.l2_reg_lambda)
+    # cnn = TextCNN(sequence_length=data_loader.max_doc_len, num_classes=data_loader.num_class,
+    #               vocab_size=data_loader.vocab_size,
+    #               embedding_size=FLAGS.embedding_dim,
+    #               filter_sizes=map(int, FLAGS.filter_sizes.split(",")),
+    #               num_filters=FLAGS.num_filters, multilabel=FLAGS.multilabel,
+    #               pooling_filter_size=3, l2_reg_lambda=FLAGS.l2_reg_lambda)
+
+    cnn = TextCNN_V2(sequence_length=data_loader.max_doc_len,
+                     num_classes=data_loader.num_class,
+                     vocab_size=data_loader.vocab_size,
+                     embedding_size=FLAGS.embedding_dim,
+                     filter_sizes=map(int, FLAGS.filter_sizes.split(',')),
+                     num_filters=FLAGS.num_filters,
+                     dense_size=FLAGS.dense_size)
 
     # define Training procedure
     decayed_learning_rate = tf.train.exponential_decay(FLAGS.learning_rate, global_step, FLAGS.decay_every_steps,
@@ -160,12 +171,10 @@ if __name__ == '__main__':
 
     # training summary
     train_loss_summary = tf.summary.scalar("train_loss", cnn.loss)
-    train_acc_summary = tf.summary.scalar("train_accuracy", cnn.accuracy)
-    train_summary_op = tf.summary.merge([train_loss_summary, train_acc_summary])
+    train_summary_op = tf.summary.merge([train_loss_summary])
 
     # test summary
     test_mean_loss_pd = tf.placeholder(tf.float32, shape=None, name="test_mean_loss")
-    test_mean_accuracy_pd = tf.placeholder(tf.float32, shape=None, name="test_mean_accuracy")
     test_jaccard_pd = tf.placeholder(tf.float32, shape=None, name="test_jaccard")
     test_avg_f_pd = tf.placeholder(tf.float32, shape=None, name="test_avg_f")
     test_weighted_f_pd = tf.placeholder(tf.float32, shape=None, name="test_weighted_f")
@@ -180,7 +189,6 @@ if __name__ == '__main__':
     dist_hist = None
 
     test_loss_summary = tf.summary.scalar("test_mean_loss", test_mean_loss_pd)
-    test_acc_summary = tf.summary.scalar("test_mean_accuracy", test_mean_accuracy_pd)
     test_jaccard_summary = tf.summary.scalar("test_jaccard", test_jaccard_pd)
     test_avg_f_summary = tf.summary.scalar("test_avg_f", test_avg_f_pd)
     test_weighted_f_summary = tf.summary.scalar("test_weighted_f", test_weighted_f_pd)
@@ -189,10 +197,9 @@ if __name__ == '__main__':
     test_fscore_summary = tf.summary.image('test_fscore', test_fscore_pd)
     test_dist_summary = tf.summary.image('test_distribution', test_dist_pd)
     test_curr_prf_summary = tf.summary.image('test_curr_prf', test_curr_prf_pd)
-    test_summary_op = tf.summary.merge([test_loss_summary, test_acc_summary, test_jaccard_summary,
-                                        test_avg_f_summary, test_weighted_f_summary, test_precision_summary,
-                                        test_recall_summary, test_fscore_summary, test_dist_summary,
-                                        test_curr_prf_summary])
+    test_summary_op = tf.summary.merge([test_loss_summary, test_jaccard_summary, test_avg_f_summary,
+                                        test_weighted_f_summary, test_precision_summary, test_recall_summary,
+                                        test_fscore_summary, test_dist_summary, test_curr_prf_summary])
 
     # init writer and saver
     summary_writer = tf.summary.FileWriter(summary_dir, sess.graph)
@@ -212,16 +219,16 @@ if __name__ == '__main__':
 
         cur_step = tf.train.global_step(sess, global_step)
 
-        acc, losses, dev_scores = [], [], []
+        losses, dev_scores = [], [], []
         pbar = ProgressBar(maxval=num_batches).start()
         for x_batch, y_batch, batch_num, is_epochComplete in d_loader.batcher(train=False, batch_size=batch_size):
             feed_dict = {cnn.input_x: x_batch,
                          cnn.input_y: y_batch,
-                         cnn.dropout_keep_prob: 1.0}
+                         cnn.dropout_keep_prob: 1.0,
+                         cnn.is_training: False}
 
-            loss, accuracy, scores = sess.run([cnn.loss, cnn.accuracy, cnn.scores], feed_dict)
+            loss, scores = sess.run([cnn.loss, cnn.scores], feed_dict)
 
-            acc.append(accuracy)
             losses.append(loss)
             dev_scores.extend(scores)
 
@@ -231,6 +238,7 @@ if __name__ == '__main__':
                 break
         pbar.finish()
 
+        # TODO can use numpy and mat to replace prediction
         y_pred = get_prediction_sigmoid(dev_scores)
         y_true = d_loader.Y[d_loader.partition_ind:, :]
 
@@ -246,7 +254,6 @@ if __name__ == '__main__':
 
         summaries = sess.run(test_summary_op,
                              {test_mean_loss_pd: np.mean(losses),
-                              test_mean_accuracy_pd: np.mean(acc),
                               test_jaccard_pd: jaccard_sim,
                               test_avg_f_pd: np.mean(prf_ls[2]),
                               test_weighted_f_pd: np.sum(weighted_f),
@@ -273,13 +280,13 @@ if __name__ == '__main__':
 
         feed_dict = {cnn.input_x: x_batch,
                      cnn.input_y: y_batch,
-                     cnn.dropout_keep_prob: FLAGS.dropout_keep_prob}
+                     cnn.dropout_keep_prob: FLAGS.dropout_keep_prob,
+                     cnn.is_training: True}
 
-        _, cur_step, summaries, loss, accuracy, scores = sess.run([train_op,
+        _, cur_step, summaries, loss, scores = sess.run([train_op,
                                                                global_step,
                                                                train_summary_op,
                                                                cnn.loss,
-                                                               cnn.accuracy,
                                                                cnn.scores], feed_dict)
 
         summary_writer.add_summary(summaries, cur_step)
