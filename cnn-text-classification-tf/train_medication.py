@@ -213,15 +213,14 @@ if __name__ == '__main__':
 
 
     def evaluate(d_loader, prf_hist, dist_hist):
-        batch_size = 500
         data_size = d_loader.X.shape[0] - d_loader.partition_ind
-        num_batches = d_loader.compute_numOf_batch(data_size, batch_size)
+        num_batches = d_loader.compute_numOf_batch(data_size, FLAGS.batch_size)
 
         cur_step = tf.train.global_step(sess, global_step)
 
         losses, dev_scores = [], []
         pbar = ProgressBar(maxval=num_batches).start()
-        for x_batch, y_batch, batch_num, is_epochComplete in d_loader.batcher(train=False, batch_size=batch_size):
+        for x_batch, y_batch, batch_num, is_epochComplete in d_loader.batcher(train=False, batch_size=FLAGS.batch_size):
             feed_dict = {cnn.input_x: x_batch,
                          cnn.input_y: y_batch,
                          cnn.dropout_keep_prob: 1.0,
@@ -237,6 +236,8 @@ if __name__ == '__main__':
             if is_epochComplete:
                 break
         pbar.finish()
+
+        print losses
 
         # TODO can use numpy and mat to replace prediction
         y_pred = get_prediction_sigmoid(dev_scores)
