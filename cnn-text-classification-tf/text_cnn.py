@@ -166,3 +166,9 @@ class TextCNN_V2(object):
         with tf.name_scope("loss"):
             losses = tf.nn.sigmoid_cross_entropy_with_logits(logits=self.scores, labels=self.input_y)
             self.loss = tf.reduce_mean(losses)
+
+        # mean accuracy
+        with tf.name_scope("accuracy"):
+            self.pred = tf.round(tf.nn.sigmoid(self.scores))
+            self.correct_pred = tf.equal(self.pred, tf.round(self.input_y))
+            self.accuracy = tf.reduce_mean(tf.cast(self.correct_pred, tf.float32))

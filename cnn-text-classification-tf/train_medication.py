@@ -171,10 +171,12 @@ if __name__ == '__main__':
 
     # training summary
     train_loss_summary = tf.summary.scalar("train_loss", cnn.loss)
-    train_summary_op = tf.summary.merge([train_loss_summary])
+    train_acc_summary = tf.summary.scalar("train_accuracy", cnn.accuracy)
+    train_summary_op = tf.summary.merge([train_loss_summary, train_acc_summary])
 
     # test summary
     test_mean_loss_pd = tf.placeholder(tf.float32, shape=None, name="test_mean_loss")
+    test_mean_acc_pd = tf.placeholder(tf.float32, shape=None, name="test_mean_acc")
     test_jaccard_pd = tf.placeholder(tf.float32, shape=None, name="test_jaccard")
     test_avg_f_pd = tf.placeholder(tf.float32, shape=None, name="test_avg_f")
     test_weighted_f_pd = tf.placeholder(tf.float32, shape=None, name="test_weighted_f")
@@ -189,6 +191,7 @@ if __name__ == '__main__':
     dist_hist = None
 
     test_loss_summary = tf.summary.scalar("test_mean_loss", test_mean_loss_pd)
+    test_acc_summary = tf.summary.scalar("test_mean_acc", test_mean_acc_pd)
     test_jaccard_summary = tf.summary.scalar("test_jaccard", test_jaccard_pd)
     test_avg_f_summary = tf.summary.scalar("test_avg_f", test_avg_f_pd)
     test_weighted_f_summary = tf.summary.scalar("test_weighted_f", test_weighted_f_pd)
@@ -197,7 +200,7 @@ if __name__ == '__main__':
     test_fscore_summary = tf.summary.image('test_fscore', test_fscore_pd)
     test_dist_summary = tf.summary.image('test_distribution', test_dist_pd)
     test_curr_prf_summary = tf.summary.image('test_curr_prf', test_curr_prf_pd)
-    test_summary_op = tf.summary.merge([test_loss_summary, test_jaccard_summary, test_avg_f_summary,
+    test_summary_op = tf.summary.merge([test_loss_summary, test_acc_summary, test_jaccard_summary, test_avg_f_summary,
                                         test_weighted_f_summary, test_precision_summary, test_recall_summary,
                                         test_fscore_summary, test_dist_summary, test_curr_prf_summary])
 
@@ -216,9 +219,10 @@ if __name__ == '__main__':
         data_size = d_loader.X.shape[0] - d_loader.partition_ind
         num_batches = d_loader.compute_numOf_batch(data_size, FLAGS.batch_size)
 
+        y_pred = np.zeros((data_size, data_loader.num_class), dtype=np.float32)
         cur_step = tf.train.global_step(sess, global_step)
 
-        losses, dev_scores = [], []
+        losses, acc_ls = [], []
         pbar = ProgressBar(maxval=num_batches).start()
         for x_batch, y_batch, batch_num, is_epochComplete in d_loader.batcher(train=False, batch_size=FLAGS.batch_size):
             feed_dict = {cnn.input_x: x_batch,
@@ -226,10 +230,12 @@ if __name__ == '__main__':
                          cnn.dropout_keep_prob: 1.0,
                          cnn.is_training: False}
 
-            loss, scores = sess.run([cnn.loss, cnn.scores], feed_dict)
+            loss, test_acc, batch_pred = sess.run([cnn.loss, cnn.accuracy, cnn.pred], feed_dict)
 
             losses.append(loss)
-            dev_scores.extend(scores)
+            acc_ls.append(test_acc)
+            chunk_end = min((batch_num+1)*FLAGS.batch_size, data_size)
+            y_pred[batch_num*FLAGS.batch_size:chunk_end, :] = batch_pred
 
             pbar.update(batch_num + 1)
 
@@ -237,10 +243,6 @@ if __name__ == '__main__':
                 break
         pbar.finish()
 
-        print losses
-
-        # TODO can use numpy and mat to replace prediction
-        y_pred = get_prediction_sigmoid(dev_scores)
         y_true = d_loader.Y[d_loader.partition_ind:, :]
 
         jaccard_sim = jaccard_similarity_score(y_true, y_pred)
@@ -255,6 +257,7 @@ if __name__ == '__main__':
 
         summaries = sess.run(test_summary_op,
                              {test_mean_loss_pd: np.mean(losses),
+                              test_mean_acc_pd: np.mean(acc_ls),
                               test_jaccard_pd: jaccard_sim,
                               test_avg_f_pd: np.mean(prf_ls[2]),
                               test_weighted_f_pd: np.sum(weighted_f),
@@ -284,11 +287,12 @@ if __name__ == '__main__':
                      cnn.dropout_keep_prob: FLAGS.dropout_keep_prob,
                      cnn.is_training: True}
 
-        _, cur_step, summaries, loss, scores = sess.run([train_op,
+        _, cur_step, summaries, loss, scores, acc = sess.run([train_op,
                                                                global_step,
                                                                train_summary_op,
                                                                cnn.loss,
-                                                               cnn.scores], feed_dict)
+                                                               cnn.scores,
+                                                               cnn.accuracy], feed_dict)
 
         summary_writer.add_summary(summaries, cur_step)
         pbar.update(batch_num + 1)
