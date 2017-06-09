@@ -130,7 +130,7 @@ class TextCNN_V2(object):
                 conv = tf.nn.conv2d(self.embedded_chars_expanded, W,
                                     strides=[1, 1, 1, 1], padding="VALID", name="conv") + b
                 # batch norm
-                conv = tf.contrib.layers.batch_norm(conv, is_training=self.is_training, scope='bn')
+                conv = tf.contrib.layers.batch_norm(conv, is_training=self.is_training, name='bn')
                 # Apply nonlinearity
                 h = tf.nn.relu(conv, name="relu")
 
@@ -153,7 +153,7 @@ class TextCNN_V2(object):
             W = tf.Variable(tf.truncated_normal(shape=[num_filters_total, dense_size], stddev=0.1), name="W")
             b = tf.Variable(tf.constant(0.1, shape=[dense_size]), name="b")
             self.scores = tf.nn.xw_plus_b(self.h_drop, W, b, name="lin_transform")
-            self.scores = tf.contrib.layers.batch_norm(self.scores, is_training=self.is_training, scope='bn')
+            self.scores = tf.contrib.layers.batch_norm(self.scores, is_training=self.is_training, name='bn')
             self.scores = tf.nn.relu(self.scores, name="relu")
 
         # linear output
