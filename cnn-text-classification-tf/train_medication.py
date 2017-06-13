@@ -88,8 +88,8 @@ if __name__ == '__main__':
     tf.flags.DEFINE_string("filter_sizes", "3,4,5", "Comma-separated filter sizes (default: '3,4,5')")
     tf.flags.DEFINE_integer("dense_size", 64, "size of the dense layer")
     # regularization
-    tf.flags.DEFINE_float("dropout_keep_prob", 1.0, "Dropout keep probability (default: 0.5)")
-    tf.flags.DEFINE_float("l2_reg_lambda", 0.0, "L2 regularization lambda (default: 0.0)")
+    tf.flags.DEFINE_float("dropout_keep_prob", 0.5, "Dropout keep probability (default: 0.5)")
+    tf.flags.DEFINE_float("l2_reg_lambda", 0.001, "L2 regularization lambda (default: 0.0)")
     # learning rate
     tf.flags.DEFINE_float("learning_rate", 0.001, "learning rate")
     tf.flags.DEFINE_float("learning_rate_decay", 0.9, "learning rate decay")
@@ -162,21 +162,23 @@ if __name__ == '__main__':
                      filter_sizes=map(int, FLAGS.filter_sizes.split(',')),
                      num_filters=FLAGS.num_filters,
                      dense_size=FLAGS.dense_size,
+                     l2_coef=FLAGS.l2_reg_lambda,
                      init_w2v=np.load(FLAGS.w2v_path),
                      freez_w2v=FLAGS.freez_w2v)
 
     # define Training procedure
-    decayed_learning_rate = tf.train.exponential_decay(FLAGS.learning_rate, global_step, FLAGS.decay_every_steps,
-                                                       FLAGS.learning_rate_decay,
-                                                       staircase=True)  # decay around every 10 epoches
-    optimizer = tf.train.AdamOptimizer(decayed_learning_rate)
+    # decayed_learning_rate = tf.train.exponential_decay(FLAGS.learning_rate, global_step, FLAGS.decay_every_steps,
+    #                                                    FLAGS.learning_rate_decay,
+    #                                                    staircase=True)  # decay around every 10 epoches
+    optimizer = tf.train.AdamOptimizer(FLAGS.learning_rate)
     grads_and_vars = optimizer.compute_gradients(cnn.loss)
     train_op = optimizer.apply_gradients(grads_and_vars, global_step=global_step)
 
     # training summary
     train_loss_summary = tf.summary.scalar("train_loss", cnn.loss)
+    l2_loss_summary = tf.summary.scalar("l2_loss", cnn.l2_loss)
     train_acc_summary = tf.summary.scalar("train_accuracy", cnn.accuracy)
-    train_summary_op = tf.summary.merge([train_loss_summary, train_acc_summary])
+    train_summary_op = tf.summary.merge([train_loss_summary, l2_loss_summary, train_acc_summary])
 
     # test summary
     test_mean_loss_pd = tf.placeholder(tf.float32, shape=None, name="test_mean_loss")

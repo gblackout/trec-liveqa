@@ -85,7 +85,7 @@ class TextCNN(object):
 class TextCNN_V2(object):
 
     def __init__(self, sequence_length, num_classes, vocab_size, embedding_size, filter_sizes, num_filters, dense_size,
-                 init_w2v=None, freez_w2v=False):
+                 l2_coef, init_w2v=None, freez_w2v=False):
         """
         init text cnn model
         
@@ -116,6 +116,8 @@ class TextCNN_V2(object):
         self.is_training = tf.placeholder(tf.bool, name='is_training')
         self.population = tf.placeholder(tf.int32, shape=num_classes, name="input_x")
 
+        self.l2_loss = None
+
         # either learn a new one or load from a pretrained-one
         with tf.name_scope("embedding"):
 
@@ -139,6 +141,13 @@ class TextCNN_V2(object):
                 # Convolution Layer
                 filter_shape = [filter_size, embedding_size, 1, num_filters]
                 W = tf.Variable(tf.truncated_normal(filter_shape, stddev=0.1), name="W")
+
+                # adding L2 loss
+                if self.l2_loss is None:
+                    self.l2_loss = tf.nn.l2_loss(W)
+                else:
+                    self.l2_loss += tf.nn.l2_loss(W)
+
                 b = tf.Variable(tf.constant(0.1, shape=[num_filters]), name="b")
                 conv = tf.nn.conv2d(self.embedded_chars_expanded, W,
                                     strides=[1, 1, 1, 1], padding="VALID", name="conv") + b
@@ -164,6 +173,7 @@ class TextCNN_V2(object):
         # relu dense layer
         with tf.name_scope("dense"):
             W = tf.Variable(tf.truncated_normal(shape=[num_filters_total, dense_size], stddev=0.1), name="W")
+            self.l2_loss += tf.nn.l2_loss(W)
             b = tf.Variable(tf.constant(0.1, shape=[dense_size]), name="b")
             self.scores = tf.nn.xw_plus_b(self.h_drop, W, b, name="lin_transform")
             self.scores = tf.contrib.layers.batch_norm(self.scores, is_training=self.is_training)
@@ -172,13 +182,16 @@ class TextCNN_V2(object):
         # linear output
         with tf.name_scope("output"):
             W = tf.Variable(tf.truncated_normal(shape=[dense_size, num_classes], stddev=0.1), name="W")
+            self.l2_loss += tf.nn.l2_loss(W)
             b = tf.Variable(tf.constant(0.1, shape=[num_classes]), name="b")
             self.scores = tf.nn.xw_plus_b(self.scores, W, b, name="lin_transform")
 
         # Mean cross-entropy loss
         with tf.name_scope("loss"):
             losses = tf.nn.sigmoid_cross_entropy_with_logits(logits=self.scores, labels=self.input_y)
-            self.loss = tf.reduce_mean(losses)
+            self.obj_loss = tf.reduce_mean(losses)
+            self.l2_loss = l2_coef * self.l2_loss
+            self.loss = self.l2_loss + self.obj_loss
 
         # mean accuracy
         with tf.name_scope("accuracy"):
@@ -197,3 +210,21 @@ class TextCNN_V2(object):
         #     self.f = 2 * self.p * self.r / (self.p+self.r)
         #
         #     self.weighted_f = tf.reduce_sum(self.f / (self.population / tf.reduce_sum(self.population)))
+
+# if __name__ == '__main__':
+#     lr =0.01
+#
+#     beta2 = 0.999
+#     beta1 = 0.9
+#
+#     t_ls = np.arange(0, int(1e6), dtype=np.float32)
+#     y_ls = []
+#     for t in t_ls:
+#         y_ls.append(lr * np.sqrt(1 - beta2**t) / (1 - beta1**t))
+#
+#     import matplotlib
+#     matplotlib.use('TkAgg')
+#     import matplotlib.pyplot as plt
+#
+#     plt.plot(t_ls, y_ls)
+#     plt.show()
