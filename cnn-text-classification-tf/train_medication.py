@@ -193,6 +193,8 @@ if __name__ == '__main__':
     # image history arrays
     prf_hist = None
     dist_hist = None
+    # record the best score on TEST set
+    best_weighted_f1 = 0.0
 
     test_loss_summary = tf.summary.scalar("test_mean_loss", test_mean_loss_pd)
     test_acc_summary = tf.summary.scalar("test_mean_acc", test_mean_acc_pd)
@@ -208,6 +210,11 @@ if __name__ == '__main__':
                                         test_weighted_f_summary, test_precision_summary, test_recall_summary,
                                         test_fscore_summary, test_dist_summary, test_curr_prf_summary])
 
+    # best summaries
+    best_test_fscore_summary = tf.summary.image('best_test_fscore', test_fscore_pd)
+    best_test_summary_op = tf.summary.merge([best_test_fscore_summary])
+
+
     # init writer and saver
     summary_writer = tf.summary.FileWriter(summary_dir, sess.graph)
     saver = tf.train.Saver(tf.global_variables(), max_to_keep=FLAGS.num_checkpoints)
@@ -220,6 +227,7 @@ if __name__ == '__main__':
 
 
     def evaluate(d_loader, prf_hist, dist_hist):
+        global best_weighted_f1
         data_size = d_loader.X.shape[0] - d_loader.partition_ind
         num_batches = d_loader.compute_numOf_batch(data_size, FLAGS.batch_size)
 
@@ -258,13 +266,21 @@ if __name__ == '__main__':
         population = d_loader.get_med_freq()
         weights = population / np.sum(population)
         weighted_f = weights * prf_ls[2]
+        weighted_f = np.sum(weighted_f)
+
+        # whether this model performs best? if so save it
+        if weighted_f > best_weighted_f1:
+            best_weighted_f1 = weighted_f
+            update_best = True
+        else:
+            update_best = False
 
         summaries = sess.run(test_summary_op,
                              {test_mean_loss_pd: np.mean(losses),
                               test_mean_acc_pd: np.mean(acc_ls),
                               test_jaccard_pd: jaccard_sim,
                               test_avg_f_pd: np.mean(prf_ls[2]),
-                              test_weighted_f_pd: np.sum(weighted_f),
+                              test_weighted_f_pd: weighted_f,
                               test_precision_pd: np.expand_dims(prf_images[0], axis=0),
                               test_recall_pd: np.expand_dims(prf_images[1], axis=0),
                               test_fscore_pd: np.expand_dims(prf_images[2], axis=0),
@@ -273,11 +289,17 @@ if __name__ == '__main__':
 
         summary_writer.add_summary(summaries, cur_step)
 
-        return prf_hist, dist_hist
+        # updated best summaries
+        if update_best:
+            best_summaires = sess.run(best_test_summary_op,
+                                      {test_fscore_pd: np.expand_dims(prf_images[2], axis=0)})
+            summary_writer.add_summary(best_summaires, cur_step)
+
+        return prf_hist, dist_hist, update_best
 
 
     linesep('initial model evaluate')
-    prf_hist, dist_hist = evaluate(data_loader, prf_hist, dist_hist)
+    prf_hist, dist_hist, update_best = evaluate(data_loader, prf_hist, dist_hist)
 
     epoch_cnt = 0
     eval_bystep = FLAGS.evaluate_freq > 0
@@ -306,7 +328,10 @@ if __name__ == '__main__':
             pbar.finish()
 
             linesep('evaluate model at step %i' % cur_step)
-            prf_hist, dist_hist = evaluate(data_loader, prf_hist, dist_hist)
+            prf_hist, dist_hist, update_best = evaluate(data_loader, prf_hist, dist_hist)
+
+            if update_best:
+                saver.save(sess, joinpath(checkpoint_dir, 'best_model.ckpt'))
 
             pbar.start()
             pbar.update(batch_num+1)
@@ -317,12 +342,15 @@ if __name__ == '__main__':
             # eval model in epoch mode
             if not eval_bystep and (epoch_cnt % (-FLAGS.evaluate_freq) == 0):
                 linesep('evaluate model at epoch %i' % epoch_cnt)
-                prf_hist, dist_hist = evaluate(data_loader, prf_hist, dist_hist)
+                prf_hist, dist_hist, update_best = evaluate(data_loader, prf_hist, dist_hist)
+
+                if update_best:
+                    saver.save(sess, joinpath(checkpoint_dir, 'best_model.ckpt'))
 
             # save model
             if epoch_cnt % FLAGS.checkpoint_freq == 0:
                 linesep('save model at epoch %i' % epoch_cnt)
-                saver.save(sess, joinpath(checkpoint_dir, str(cur_step) + '.ckpt'), global_step=cur_step)
+                saver.save(sess, joinpath(checkpoint_dir, 'model.ckpt'), global_step=cur_step)
 
             epoch_cnt += 1
             if epoch_cnt >= FLAGS.num_epochs:
