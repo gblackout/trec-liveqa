@@ -18,6 +18,7 @@ log_dir = joinpath(out_dir, 'log')
 summary_dir = joinpath(out_dir, 'summary')
 checkpoint_dir = joinpath(out_dir, "checkpoint")
 
+makedir(out_dir)
 makedir(log_dir)
 makedir(summary_dir)
 makedir(checkpoint_dir)
@@ -154,13 +155,13 @@ with graph.as_default():
 
 # Step 5: Begin training.
 num_steps = int(5e6)
-saver = tf.train.Saver(tf.global_variables(), max_to_keep=100)
 
 with tf.Session(graph=graph) as session:
     # We must initialize all variables before we use them.
     init.run()
     print('Initialized')
 
+    saver = tf.train.Saver(tf.global_variables(), max_to_keep=100)
     summary_writer = tf.summary.FileWriter(summary_dir, session.graph)
     train_loss_summary = tf.summary.scalar("test_mean_loss", loss)
 
@@ -206,7 +207,6 @@ with tf.Session(graph=graph) as session:
 
     # step 5.5 output all embedding list for later use
     full_table = embeddings.eval()
-    print('full table type ----> '+type(full_table))
     np.save(joinpath(log_dir, 'full_table'), full_table)
 
 

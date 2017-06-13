@@ -73,6 +73,7 @@ if __name__ == '__main__':
     tf.flags.DEFINE_string("stpwd_path", '../stpwd', "")
     tf.flags.DEFINE_string("dataset_dir", '../uni_containers_tmp', "")
     tf.flags.DEFINE_string("matdata_dir", '../hyper_mat_data', "")
+    tf.flags.DEFINE_string("w2v_path", '../full_table.npy', "")
     tf.flags.DEFINE_string("output_dir", 'out', "main output directory")
     tf.flags.DEFINE_string("log_path", 'log_file', "")
     tf.flags.DEFINE_integer("load_model", 0, "load model file")
@@ -105,6 +106,7 @@ if __name__ == '__main__':
     # Misc Parameters
     tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
     tf.flags.DEFINE_boolean("log_device_placement", False, "Log placement of ops on devices")
+    tf.flags.DEFINE_boolean("freez_w2v", True, "")
 
     FLAGS = tf.flags.FLAGS
     FLAGS._parse_flags()
@@ -159,7 +161,9 @@ if __name__ == '__main__':
                      embedding_size=FLAGS.embedding_dim,
                      filter_sizes=map(int, FLAGS.filter_sizes.split(',')),
                      num_filters=FLAGS.num_filters,
-                     dense_size=FLAGS.dense_size)
+                     dense_size=FLAGS.dense_size,
+                     init_w2v=np.load(FLAGS.w2v_path),
+                     freez_w2v=FLAGS.freez_w2v)
 
     # define Training procedure
     decayed_learning_rate = tf.train.exponential_decay(FLAGS.learning_rate, global_step, FLAGS.decay_every_steps,

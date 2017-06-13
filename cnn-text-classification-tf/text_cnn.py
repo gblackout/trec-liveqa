@@ -84,7 +84,8 @@ class TextCNN(object):
 
 class TextCNN_V2(object):
 
-    def __init__(self, sequence_length, num_classes, vocab_size, embedding_size, filter_sizes, num_filters, dense_size):
+    def __init__(self, sequence_length, num_classes, vocab_size, embedding_size, filter_sizes, num_filters, dense_size,
+                 init_w2v=None, freez_w2v=False):
         """
         init text cnn model
         
@@ -105,7 +106,8 @@ class TextCNN_V2(object):
             how many filters for each channel
         dense_size: 
             size of dense layer
-        
+        init_w2v:
+            pretrained w2v numpy array
         """
         # Placeholders for input, output and dropout
         self.input_x = tf.placeholder(tf.int32, [None, sequence_length], name="input_x")
@@ -114,9 +116,19 @@ class TextCNN_V2(object):
         self.is_training = tf.placeholder(tf.bool, name='is_training')
         self.population = tf.placeholder(tf.int32, shape=num_classes, name="input_x")
 
-        # TODO embedding
+        # either learn a new one or load from a pretrained-one
         with tf.name_scope("embedding"):
-            W = tf.Variable(tf.random_uniform([vocab_size, embedding_size], -1.0, 1.0), name="W")
+
+            if type(init_w2v) == type(np.zeros(1)):
+                assert init_w2v.shape[0] == vocab_size and init_w2v.shape[1] == embedding_size
+                W = tf.Variable(init_w2v, name="W")
+                if freez_w2v:
+                    tf.stop_gradient(W)
+                print '======>load word2vec from pretrained mat, freez_w2v is: %s' % str(freez_w2v)
+            else:
+                W = tf.Variable(tf.random_uniform([vocab_size, embedding_size], -1.0, 1.0), name="W")
+                print '======>init random word2vec'
+
             self.embedded_chars = tf.nn.embedding_lookup(W, self.input_x)
             self.embedded_chars_expanded = tf.expand_dims(self.embedded_chars, -1)
 
