@@ -83,9 +83,9 @@ if __name__ == '__main__':
 
     # Model Hyperparameters
     tf.flags.DEFINE_integer("embedding_dim", 128, "Dimensionality of character embedding (default: 128)")
-    tf.flags.DEFINE_integer("num_filters", 128, "Number of filters per filter size (default: 128)")
+    tf.flags.DEFINE_integer("num_filters", 64, "Number of filters per filter size (default: 128)")
     tf.flags.DEFINE_string("filter_sizes", "3,4,5", "Comma-separated filter sizes (default: '3,4,5')")
-    tf.flags.DEFINE_integer("dense_size", 512, "size of the dense layer")
+    tf.flags.DEFINE_integer("dense_size", 64, "size of the dense layer")
     # regularization
     tf.flags.DEFINE_float("dropout_keep_prob", 1.0, "Dropout keep probability (default: 0.5)")
     tf.flags.DEFINE_float("l2_reg_lambda", 0.0, "L2 regularization lambda (default: 0.0)")

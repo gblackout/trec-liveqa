@@ -48,7 +48,7 @@ def get_output_folder(parent_dir, run_name):
 
     experiment_id = 0
     for folder_name in os.listdir(parent_dir):
-        if not os.path.isdir(joinpath(parent_dir, folder_name)):
+        if (not os.path.isdir(joinpath(parent_dir, folder_name))) or (run_name not in folder_name):
             continue
         try:
             folder_name = int(folder_name.split('-run')[-1])

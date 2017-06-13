@@ -112,6 +112,7 @@ class TextCNN_V2(object):
         self.input_y = tf.placeholder(tf.float32, [None, num_classes], name="input_y")
         self.dropout_keep_prob = tf.placeholder(tf.float32, name="dropout_keep_prob")
         self.is_training = tf.placeholder(tf.bool, name='is_training')
+        self.population = tf.placeholder(tf.int32, shape=num_classes, name="input_x")
 
         # TODO embedding
         with tf.name_scope("embedding"):
@@ -170,5 +171,17 @@ class TextCNN_V2(object):
         # mean accuracy
         with tf.name_scope("accuracy"):
             self.pred = tf.round(tf.nn.sigmoid(self.scores))
-            self.correct_pred = tf.equal(self.pred, tf.round(self.input_y))
-            self.accuracy = tf.reduce_mean(tf.cast(self.correct_pred, tf.float32))
+            self.correct_pred = tf.cast(tf.equal(self.pred, tf.round(self.input_y)), tf.float32)
+            self.accuracy = tf.reduce_mean(self.correct_pred)
+
+        # # class-wise precision, recall, F1
+        # with tf.name_scope("PRF"):
+        #     y_intersect = tf.reduce_sum(self.correct_pred, axis=0) # num_class-dim vector
+        #     y_pred = tf.cast(tf.reduce_sum(self.pred, axis=0), tf.float32) + 0.001
+        #     y_true = tf.reduce_sum(self.input_y, axis=0) + 0.001
+        #
+        #     self.p = y_intersect / y_pred
+        #     self.r = y_intersect / y_true
+        #     self.f = 2 * self.p * self.r / (self.p+self.r)
+        #
+        #     self.weighted_f = tf.reduce_sum(self.f / (self.population / tf.reduce_sum(self.population)))
