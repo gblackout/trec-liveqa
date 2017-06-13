@@ -91,7 +91,7 @@ if __name__ == '__main__':
     tf.flags.DEFINE_float("dropout_keep_prob", 1.0, "Dropout keep probability (default: 0.5)")
     tf.flags.DEFINE_float("l2_reg_lambda", 0.0, "L2 regularization lambda (default: 0.0)")
     # learning rate
-    tf.flags.DEFINE_float("learning_rate", 0.01, "learning rate")
+    tf.flags.DEFINE_float("learning_rate", 0.001, "learning rate")
     tf.flags.DEFINE_float("learning_rate_decay", 0.9, "learning rate decay")
     tf.flags.DEFINE_float("decay_every_steps", 2000, "decay_every_steps")
 
@@ -211,8 +211,8 @@ if __name__ == '__main__':
                                         test_fscore_summary, test_dist_summary, test_curr_prf_summary])
 
     # best summaries
-    best_test_fscore_summary = tf.summary.image('best_test_fscore', test_fscore_pd)
-    best_test_summary_op = tf.summary.merge([best_test_fscore_summary])
+    best_test_curr_prf_summary = tf.summary.image('best_test_curr_prf', test_curr_prf_pd)
+    best_test_summary_op = tf.summary.merge([best_test_curr_prf_summary])
 
 
     # init writer and saver
@@ -292,7 +292,7 @@ if __name__ == '__main__':
         # updated best summaries
         if update_best:
             best_summaires = sess.run(best_test_summary_op,
-                                      {test_fscore_pd: np.expand_dims(prf_images[2], axis=0)})
+                                      {test_curr_prf_pd: np.expand_dims(curr_prf_image, axis=0)})
             summary_writer.add_summary(best_summaires, cur_step)
 
         return prf_hist, dist_hist, update_best
