@@ -211,8 +211,10 @@ if __name__ == '__main__':
                                         test_fscore_summary, test_dist_summary, test_curr_prf_summary])
 
     # best summaries
+    best_test_weighted_f_summary = tf.summary.scalar("best_test_weighted_f", test_weighted_f_pd)
     best_test_curr_prf_summary = tf.summary.image('best_test_curr_prf', test_curr_prf_pd)
-    best_test_summary_op = tf.summary.merge([best_test_curr_prf_summary])
+
+    best_test_summary_op = tf.summary.merge([best_test_weighted_f_summary, best_test_curr_prf_summary])
 
 
     # init writer and saver
@@ -292,7 +294,8 @@ if __name__ == '__main__':
         # updated best summaries
         if update_best:
             best_summaires = sess.run(best_test_summary_op,
-                                      {test_curr_prf_pd: np.expand_dims(curr_prf_image, axis=0)})
+                                      {test_weighted_f_pd: weighted_f,
+                                       test_curr_prf_pd: np.expand_dims(curr_prf_image, axis=0)})
             summary_writer.add_summary(best_summaires, cur_step)
 
         return prf_hist, dist_hist, update_best
