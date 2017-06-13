@@ -965,18 +965,25 @@ def gen_hypertension_label_index(uni_con_path, med_dict_path, med_freq_path, num
 
         nc = NoteContainer(filename, mode=1)
         dismed_str = ' '.join(nc.discharge_medications).lower() if nc.discharge_medications else ''
+        admed_str = ' '.join(nc.admission_medications).lower() if nc.admission_medications else ''
 
         dis_cnter = findmed(med_dict, dismed_str)
+        ad_cnter = findmed(med_dict, admed_str)
+
         med_mask = [0] * numOf_class
         for dis_k in dis_cnter:
             med_mask[med_dict[dis_k][1]] = 1
+
+        ad_mask = [0] * numOf_class
+        for ad_k in ad_cnter:
+            ad_mask[med_dict[ad_k][1]] = 1
 
         if sum(med_mask) == 0:
             continue
 
         nonzero_cnt += 1
         with open('hyper_label_index', 'a') as f:
-            print >> f, nc.get_admID(), ' '.join(map(str, med_mask))
+            print >> f, nc.get_admID(), ';', ' '.join(map(str, ad_mask)), ';', ' '.join(map(str, med_mask))
 
     pprint.pprint(med_dict)
     print '!!!!!', nonzero_cnt

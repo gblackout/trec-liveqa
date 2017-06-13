@@ -69,7 +69,10 @@ if __name__ == '__main__':
     # ==================== Parameters ==============================
 
     # paths
-    tf.flags.DEFINE_string("file_labels_fn", '../hyper_label_index', "")
+
+    # TODO ad hoc
+    tf.flags.DEFINE_string("file_labels_fn", '../hyper_label_index_withadm', "")
+
     tf.flags.DEFINE_string("stpwd_path", '../stpwd', "")
     tf.flags.DEFINE_string("dataset_dir", '../uni_containers_tmp', "")
     tf.flags.DEFINE_string("matdata_dir", '../hyper_mat_data', "")
@@ -91,7 +94,7 @@ if __name__ == '__main__':
     tf.flags.DEFINE_float("dropout_keep_prob", 0.5, "Dropout keep probability (default: 0.5)")
     tf.flags.DEFINE_float("l2_reg_lambda", 0.001, "L2 regularization lambda (default: 0.0)")
     # learning rate
-    tf.flags.DEFINE_float("learning_rate", 0.001, "learning rate")
+    tf.flags.DEFINE_float("learning_rate", 0.0001, "learning rate")
     tf.flags.DEFINE_float("learning_rate_decay", 0.9, "learning rate decay")
     tf.flags.DEFINE_float("decay_every_steps", 2000, "decay_every_steps")
 
@@ -118,15 +121,20 @@ if __name__ == '__main__':
     # ==================== Data Preparation ==============================
     linesep('Loading data')
     data_loader = preprocess_mimiciii.DataLoader(0.9, FLAGS.batch_size)
-    try:
-        data_loader.load_from_mat(FLAGS.matdata_dir)
-        print '======>found mat data in %s' % FLAGS.matdata_dir
-    except:
-        print '======>mat data not found in %s loading from container in ' % FLAGS.matdata_dir
-        data_loader.load_from_text(FLAGS.dataset_dir, FLAGS.file_labels_fn, FLAGS.stpwd_path,
-                                   max_doc_len=FLAGS.max_doc_len)
-        print '======>saving mat data to %s' %FLAGS.matdata_dir
-        data_loader.save_mat(FLAGS.matdata_dir)
+
+    # TODO ad hoc
+    data_loader.load_from_text(FLAGS.dataset_dir, FLAGS.file_labels_fn, FLAGS.stpwd_path,
+                               max_doc_len=FLAGS.max_doc_len)
+
+    # try:
+    #     data_loader.load_from_mat(FLAGS.matdata_dir)
+    #     print '======>found mat data in %s' % FLAGS.matdata_dir
+    # except:
+    #     print '======>mat data not found in %s loading from container in ' % FLAGS.matdata_dir
+    #     data_loader.load_from_text(FLAGS.dataset_dir, FLAGS.file_labels_fn, FLAGS.stpwd_path,
+    #                                max_doc_len=FLAGS.max_doc_len)
+    #     print '======>saving mat data to %s' %FLAGS.matdata_dir
+    #     data_loader.save_mat(FLAGS.matdata_dir)
 
 
     num_batches_per_epoch = data_loader.compute_numOf_batch(data_loader.partition_ind, FLAGS.batch_size)
@@ -163,7 +171,7 @@ if __name__ == '__main__':
                      num_filters=FLAGS.num_filters,
                      dense_size=FLAGS.dense_size,
                      l2_coef=FLAGS.l2_reg_lambda,
-                     init_w2v=np.load(FLAGS.w2v_path),
+                     init_w2v=None,
                      freez_w2v=FLAGS.freez_w2v)
 
     # define Training procedure
@@ -235,14 +243,15 @@ if __name__ == '__main__':
         data_size = d_loader.X.shape[0] - d_loader.partition_ind
         num_batches = d_loader.compute_numOf_batch(data_size, FLAGS.batch_size)
 
-        y_pred = np.zeros((data_size, data_loader.num_class), dtype=np.float32)
+        y_pred = np.zeros((data_size, d_loader.num_class), dtype=np.float32)
         cur_step = tf.train.global_step(sess, global_step)
 
         losses, acc_ls = [], []
         pbar = ProgressBar(maxval=num_batches).start()
-        for x_batch, y_batch, batch_num, is_epochComplete in d_loader.batcher(train=False, batch_size=FLAGS.batch_size):
+        for x_batch, y_batch, adm_batch, batch_num, is_epochComplete in d_loader.batcher(train=False, batch_size=FLAGS.batch_size):
             feed_dict = {cnn.input_x: x_batch,
                          cnn.input_y: y_batch,
+                         cnn.input_adm: adm_batch,
                          cnn.dropout_keep_prob: 1.0,
                          cnn.is_training: False}
 
@@ -311,10 +320,11 @@ if __name__ == '__main__':
     linesep('train epoch %i' % epoch_cnt)
     pbar = ProgressBar(maxval=num_batches_per_epoch).start()
 
-    for x_batch, y_batch, batch_num, is_epochComplete in data_loader.batcher():
+    for x_batch, y_batch, adm_batch, batch_num, is_epochComplete in data_loader.batcher():
 
         feed_dict = {cnn.input_x: x_batch,
                      cnn.input_y: y_batch,
+                     cnn.input_adm: adm_batch,
                      cnn.dropout_keep_prob: FLAGS.dropout_keep_prob,
                      cnn.is_training: True}
 

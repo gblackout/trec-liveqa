@@ -20,6 +20,7 @@ class DataLoader:
         """
         self.X = None
         self.Y = None
+        self.admX = None
         self.data_partition = data_partition
         self.partition_ind = None
         self.vocab_processor = None
@@ -45,12 +46,20 @@ class DataLoader:
         file_labels = []
         with open(labelfile_path) as f:
             for line in f:
-                parts = line.split()
 
-                filepath = parts[0]
-                mask_vec = parts[1:]
+                # TODO ad hoc solution
+                if ';' in line:
+                    parts = line.split(';')
+                    adm_vec = map(int, parts[1].strip().split())
+                    mask_vec = map(int, parts[2].strip().split())
+                else:
+                    parts = line.split()
+                    mask_vec = map(int, parts[1:])
+                    adm_vec = None
 
-                file_labels.append([joinpath(data_dir, filepath), map(int, mask_vec)])
+                filepath = parts[0].strip()
+
+                file_labels.append([joinpath(data_dir, filepath), mask_vec, adm_vec])
 
         # get set of stpwd
         stpwd = set()
@@ -68,8 +77,8 @@ class DataLoader:
         self.vocab_processor = learn.preprocessing.VocabularyProcessor(max_doc_len, min_frequency=3)
 
         # visit all json files, extract X and Y
-        X, Y = [], []
-        for i, (filepath, label_vec) in enumerate(file_labels):
+        X, Y, admX = [], [], []
+        for i, (filepath, label_vec, adm_vec) in enumerate(file_labels):
             assert os.path.exists(filepath), 'file not found %s' % filepath
 
             nc = NoteContainer(filepath, mode=1)
@@ -82,9 +91,12 @@ class DataLoader:
 
             X.append(' '.join(filtered_tokens))
             Y.append(label_vec)
+            admX.append(adm_vec)
 
         self.X = np.array(list(self.vocab_processor.fit_transform(X)))
         self.Y = np.array(Y, dtype=np.float32)
+        if admX[0] is not None:
+            self.admX = np.array(admX, dtype=np.float32)
 
         self.vocab_size = len(self.vocab_processor.vocabulary_)
         self.max_doc_len = max_doc_len
@@ -122,12 +134,13 @@ class DataLoader:
                 end_index = bias + min((batch_num + 1) * bsize, bias + data_size)
                 is_epochComplete = batch_num + 1 == num_batches
 
-                x_batch, y_batch = self.get_chunk(start_index, end_index)
+                x_batch, y_batch, adm_batch = self.get_chunk(start_index, end_index)
 
-                yield x_batch, y_batch, batch_num, is_epochComplete
+                yield x_batch, y_batch, adm_batch, batch_num, is_epochComplete
 
     def get_chunk(self, start_index, end_index):
-        return self.X[start_index:end_index], self.Y[start_index:end_index]
+        return self.X[start_index:end_index], self.Y[start_index:end_index], \
+               self.admX[start_index:end_index] if self.admX is not None else None
 
     @staticmethod
     def compute_numOf_batch(total_size, batch_size):

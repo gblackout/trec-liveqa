@@ -111,6 +111,7 @@ class TextCNN_V2(object):
         """
         # Placeholders for input, output and dropout
         self.input_x = tf.placeholder(tf.int32, [None, sequence_length], name="input_x")
+        self.input_adm = tf.placeholder(tf.float32, [None, num_classes], name="input_adm")
         self.input_y = tf.placeholder(tf.float32, [None, num_classes], name="input_y")
         self.dropout_keep_prob = tf.placeholder(tf.float32, name="dropout_keep_prob")
         self.is_training = tf.placeholder(tf.bool, name='is_training')
@@ -169,6 +170,10 @@ class TextCNN_V2(object):
         # Add dropout
         with tf.name_scope("dropout"):
             self.h_drop = tf.nn.dropout(self.h_pool_flat, self.dropout_keep_prob)
+
+        # concate with adm encodings
+        with tf.name_scope('concat'):
+            self.h_drop = tf.concat([self.h_drop, self.input_adm], axis=-1)
 
         # relu dense layer
         with tf.name_scope("dense"):
