@@ -86,7 +86,7 @@ class TextCNN(object):
 class TextCNN_V2(object):
 
     def __init__(self, sequence_length, num_classes, vocab_size, embedding_size, filter_sizes, num_filters, dense_size,
-                 l2_coef, crf_lambda, use_crf=True, init_w2v=None, freez_w2v=False):
+                 l2_coef, crf_lambda, batch_size, use_crf=True, init_w2v=None, freez_w2v=False):
         """
         init text cnn model
         
@@ -239,7 +239,7 @@ class TextCNN_V2(object):
             if use_crf:
                 preds = []
                 inds = tf.argmax(all_loglikelihood, axis=-1, name='inds')
-                for i in xrange(tf.shape(inds)[0]):
+                for i in xrange(batch_size):
                     preds.append(self.all_y[inds[i], :])
                 self.pred = tf.stack(preds, name='no_round_preds')
             else:

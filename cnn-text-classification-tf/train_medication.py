@@ -176,6 +176,7 @@ if __name__ == '__main__':
                      dense_size=FLAGS.dense_size,
                      l2_coef=FLAGS.l2_reg_lambda,
                      crf_lambda=FLAGS.crf_lambda,
+                     batch_size=FLAGS.batch_size,
                      use_crf=FLAGS.use_crf,
                      init_w2v=None,
                      freez_w2v=FLAGS.freez_w2v)
