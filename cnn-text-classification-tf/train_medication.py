@@ -97,6 +97,8 @@ if __name__ == '__main__':
     tf.flags.DEFINE_float("learning_rate", 0.0001, "learning rate")
     tf.flags.DEFINE_float("learning_rate_decay", 0.9, "learning rate decay")
     tf.flags.DEFINE_float("decay_every_steps", 2000, "decay_every_steps")
+    # CRF
+    tf.flags.DEFINE_float("crf_lambda", 0.5, "")
 
     # Training parameters
     tf.flags.DEFINE_integer("batch_size", 24, "Batch Size (default: 64)")
@@ -171,6 +173,7 @@ if __name__ == '__main__':
                      num_filters=FLAGS.num_filters,
                      dense_size=FLAGS.dense_size,
                      l2_coef=FLAGS.l2_reg_lambda,
+                     crf_lambda=FLAGS.crf_lambda,
                      init_w2v=None,
                      freez_w2v=FLAGS.freez_w2v)
 

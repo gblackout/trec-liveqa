@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import sys
+import itertools
 
 
 class TextCNN(object):
@@ -85,7 +86,7 @@ class TextCNN(object):
 class TextCNN_V2(object):
 
     def __init__(self, sequence_length, num_classes, vocab_size, embedding_size, filter_sizes, num_filters, dense_size,
-                 l2_coef, init_w2v=None, freez_w2v=False):
+                 l2_coef, crf_lambda, use_crf=True, init_w2v=None, freez_w2v=False):
         """
         init text cnn model
         
@@ -116,6 +117,16 @@ class TextCNN_V2(object):
         self.dropout_keep_prob = tf.placeholder(tf.float32, name="dropout_keep_prob")
         self.is_training = tf.placeholder(tf.bool, name='is_training')
         self.population = tf.placeholder(tf.int32, shape=num_classes, name="input_x")
+
+        # all possible tags: permute * num_classes
+        self.all_y = np.array([seq for seq in itertools.product([0, 1], repeat=num_classes)], dtype=np.float32)
+        self.numOf_permu = self.all_y.shape[0]
+        self.all_y = tf.constant(self.all_y, name='all_y')
+
+        # diag mask for multiplying A
+        self.diag_mask = np.ones((num_classes, num_classes), dtype=np.float32)
+        self.diag_mask[xrange(num_classes), xrange(num_classes)] = 0
+        self.diag_mask = tf.constant(self.diag_mask, name='diag_mask')
 
         self.l2_loss = None
 
@@ -192,16 +203,49 @@ class TextCNN_V2(object):
             b = tf.Variable(tf.constant(0.1, shape=[num_classes]), name="b")
             self.scores = tf.nn.xw_plus_b(self.scores, W, b, name="lin_transform")
 
+        # CRF
+        with tf.name_scope("CRF"):
+            A = tf.Variable(tf.truncated_normal(shape=[num_classes, num_classes], stddev=0.1), name="A")
+
+            phi = tf.sigmoid(self.scores) # b X d
+            A_no_diag = A * self.diag_mask  # d X d
+
+            # b X d * (k X d)^T = b X k
+            phi_dot_all_y = tf.matmul(phi, self.all_y, transpose_b=True, name='phi_dot_all_y')
+            quad_all_y = crf_lambda * tf.reduce_sum(tf.matmul(self.all_y, A_no_diag) * self.all_y, axis=-1) # k
+
+            phi_dot_train_y = tf.reduce_sum(phi * self.input_y, axis=-1, name='phi_dot_train_y') # b
+            quad_train_y = crf_lambda * tf.reduce_sum(tf.matmul(self.input_y, A_no_diag) * self.input_y, axis=-1)  # b
+
+            # the value of log(Z(phi_i)) as b-dim vector
+            all_loglikelihood = tf.add(phi_dot_all_y, quad_all_y, name='all_loglikelihood') # b X k
+            log_Z = tf.reduce_logsumexp(all_loglikelihood, axis=-1, name='log_z')
+
+            log_likelihood = tf.reduce_sum(phi_dot_train_y + quad_train_y - log_Z, axis=-1, name='log_likelihood')
+
+
         # Mean cross-entropy loss
         with tf.name_scope("loss"):
             losses = tf.nn.sigmoid_cross_entropy_with_logits(logits=self.scores, labels=self.input_y)
             self.obj_loss = tf.reduce_mean(losses)
             self.l2_loss = l2_coef * self.l2_loss
-            self.loss = self.l2_loss + self.obj_loss
+            if use_crf:
+                self.loss = self.l2_loss - log_likelihood
+            else:
+                self.loss = self.l2_loss + self.obj_loss
 
         # mean accuracy
         with tf.name_scope("accuracy"):
-            self.pred = tf.round(tf.nn.sigmoid(self.scores))
+            if use_crf:
+                preds = []
+                inds = tf.argmax(all_loglikelihood, axis=-1, name='inds')
+                for i in xrange(tf.shape(inds)[0]):
+                    preds.append(self.all_y[inds[i], :])
+                self.pred = tf.stack(preds, name='no_round_preds')
+            else:
+                self.pred = tf.nn.sigmoid(self.scores, name='no_round_preds')
+
+            self.pred = tf.round(self.pred, name='preds')
             self.correct_pred = tf.cast(tf.equal(self.pred, tf.round(self.input_y)), tf.float32)
             self.accuracy = tf.reduce_mean(self.correct_pred)
 
