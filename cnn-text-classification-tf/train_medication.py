@@ -112,6 +112,7 @@ if __name__ == '__main__':
     tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
     tf.flags.DEFINE_boolean("log_device_placement", False, "Log placement of ops on devices")
     tf.flags.DEFINE_boolean("freez_w2v", True, "")
+    tf.flags.DEFINE_boolean("use_crf", True, "")
 
     FLAGS = tf.flags.FLAGS
     FLAGS._parse_flags()
@@ -142,7 +143,8 @@ if __name__ == '__main__':
     num_batches_per_epoch = data_loader.compute_numOf_batch(data_loader.partition_ind, FLAGS.batch_size)
 
     # Output directory for models and summaries
-    out_dir = get_output_folder(FLAGS.output_dir, 'multilabel_' + str(data_loader.num_class))
+    out_name = 'multilabel_' + 'CRF_' if FLAGS.use_crf else '' + str(data_loader.num_class)
+    out_dir = get_output_folder(FLAGS.output_dir, out_name)
     log_path = joinpath(out_dir, FLAGS.log_path)
     summary_dir = joinpath(out_dir, 'summary')
     checkpoint_dir = joinpath(out_dir, "checkpoint")
@@ -174,6 +176,7 @@ if __name__ == '__main__':
                      dense_size=FLAGS.dense_size,
                      l2_coef=FLAGS.l2_reg_lambda,
                      crf_lambda=FLAGS.crf_lambda,
+                     use_crf=FLAGS.use_crf,
                      init_w2v=None,
                      freez_w2v=FLAGS.freez_w2v)
 
