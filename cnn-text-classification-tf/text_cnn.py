@@ -9,9 +9,9 @@ class TextCNN(object):
     A CNN for text classification.
     Uses an embedding layer, followed by a convolutional, max-pooling and softmax layer.
     """
+
     def __init__(self, sequence_length, num_classes, vocab_size, embedding_size, filter_sizes, num_filters,
                  multilabel=0, pooling_filter_size=3, l2_reg_lambda=0.0, weighted_loss=0):
-
 
         # Placeholders for input, output and dropout
         self.input_x = tf.placeholder(tf.int32, [None, sequence_length], name="input_x")
@@ -42,7 +42,8 @@ class TextCNN(object):
                 h = tf.nn.relu(tf.nn.bias_add(conv, b), name="relu")
 
                 # Maxpooling over the outputs
-                pooled = tf.nn.max_pool(h, ksize=[1, sequence_length - filter_size + 1, 1, 1], strides=[1, 1, 1, 1], padding='VALID', name="pool")
+                pooled = tf.nn.max_pool(h, ksize=[1, sequence_length - filter_size + 1, 1, 1], strides=[1, 1, 1, 1],
+                                        padding='VALID', name="pool")
                 pooled_outputs.append(pooled)
                 print('filter_size : {}, pooled : {}'.format(filter_size, pooled.get_shape()))
 
@@ -58,7 +59,8 @@ class TextCNN(object):
 
         # Final (unnormalized) scores and predictions
         with tf.name_scope("output"):
-            W = tf.get_variable("W", shape=[num_filters_total, num_classes], initializer=tf.contrib.layers.xavier_initializer())
+            W = tf.get_variable("W", shape=[num_filters_total, num_classes],
+                                initializer=tf.contrib.layers.xavier_initializer())
             b = tf.Variable(tf.constant(0.1, shape=[num_classes]), name="b")
             l2_loss += tf.nn.l2_loss(W)
             l2_loss += tf.nn.l2_loss(b)
@@ -74,7 +76,8 @@ class TextCNN(object):
                 if not weighted_loss:
                     losses = tf.losses.sparse_softmax_cross_entropy(logits=self.scores, labels=self.input_y)
                 else:
-                    losses = tf.losses.sparse_softmax_cross_entropy(logits=self.scores, labels=self.input_y, weights=self.sample_weight, scope=None)
+                    losses = tf.losses.sparse_softmax_cross_entropy(logits=self.scores, labels=self.input_y,
+                                                                    weights=self.sample_weight, scope=None)
             self.loss = tf.reduce_mean(losses) + l2_reg_lambda * l2_loss
 
         # Accuracy
@@ -84,7 +87,6 @@ class TextCNN(object):
 
 
 class TextCNN_V2(object):
-
     def __init__(self, sequence_length, num_classes, vocab_size, embedding_size, filter_sizes, num_filters, dense_size,
                  l2_coef, crf_lambda, batch_size, use_crf=True, init_w2v=None, freez_w2v=False):
         """
@@ -189,7 +191,8 @@ class TextCNN_V2(object):
         # relu dense layer
         with tf.name_scope("dense"):
             # TODO
-            W = tf.Variable(tf.truncated_normal(shape=[num_filters_total+num_classes, dense_size], stddev=0.1), name="W")
+            W = tf.Variable(tf.truncated_normal(shape=[num_filters_total + num_classes, dense_size], stddev=0.1),
+                            name="W")
             self.l2_loss += tf.nn.l2_loss(W)
             b = tf.Variable(tf.constant(0.1, shape=[dense_size]), name="b")
             self.scores = tf.nn.xw_plus_b(self.h_drop, W, b, name="lin_transform")
@@ -207,41 +210,53 @@ class TextCNN_V2(object):
         with tf.name_scope("CRF"):
             A = tf.Variable(tf.truncated_normal(shape=[num_classes, num_classes], stddev=0.1), name="A")
 
-            phi = tf.sigmoid(self.scores) # b X d
+            phi = tf.sigmoid(self.scores)  # b X d
             A_no_diag = A * self.diag_mask  # d X d
 
             # b X d * (k X d)^T = b X k
             phi_dot_all_y = tf.matmul(phi, self.all_y, transpose_b=True, name='phi_dot_all_y')
-            quad_all_y = crf_lambda * tf.reduce_sum(tf.matmul(self.all_y, A_no_diag) * self.all_y, axis=-1) # k
+            quad_all_y = crf_lambda * tf.reduce_sum(tf.matmul(self.all_y, A_no_diag) * self.all_y, axis=-1)  # k
 
-            phi_dot_train_y = tf.reduce_sum(phi * self.input_y, axis=-1, name='phi_dot_train_y') # b
+            phi_dot_train_y = tf.reduce_sum(phi * self.input_y, axis=-1, name='phi_dot_train_y')  # b
             quad_train_y = crf_lambda * tf.reduce_sum(tf.matmul(self.input_y, A_no_diag) * self.input_y, axis=-1)  # b
 
             # the value of log(Z(phi_i)) as b-dim vector
-            all_loglikelihood = tf.add(phi_dot_all_y, quad_all_y, name='all_loglikelihood') # b X k
+            all_loglikelihood = tf.add(phi_dot_all_y, quad_all_y, name='all_loglikelihood')  # b X k
             log_Z = tf.reduce_logsumexp(all_loglikelihood, axis=-1, name='log_z')
 
             log_likelihood = tf.reduce_sum(phi_dot_train_y + quad_train_y - log_Z, axis=-1, name='log_likelihood')
 
+            self.unary_score = tf.reduce_sum(phi_dot_train_y - log_Z, axis=-1, name='unary_score')
+            self.binary_score = tf.reduce_sum(quad_train_y - log_Z, axis=-1, name='binary_score')
 
         # Mean cross-entropy loss
         with tf.name_scope("loss"):
             losses = tf.nn.sigmoid_cross_entropy_with_logits(logits=self.scores, labels=self.input_y)
-            self.obj_loss = tf.reduce_mean(losses)
-            self.l2_loss = l2_coef * self.l2_loss
+
             if use_crf:
-                self.loss = self.l2_loss - log_likelihood
+                self.obj_loss = - log_likelihood
             else:
-                self.loss = self.l2_loss + self.obj_loss
+                self.obj_loss = tf.reduce_mean(losses)
+
+            self.l2_loss = l2_coef * self.l2_loss
+            self.loss = self.l2_loss + self.obj_loss
 
         # mean accuracy
         with tf.name_scope("accuracy"):
             if use_crf:
-                preds = []
                 inds = tf.argmax(all_loglikelihood, axis=-1, name='inds')
-                for i in xrange(batch_size):
-                    preds.append(self.all_y[inds[i], :])
-                self.pred = tf.stack(preds, name='no_round_preds')
+                iter_ind = tf.constant(0)
+                preds = tf.constant([[-1] * num_classes])
+
+                c = lambda iter_ind, preds: iter_ind < tf.shape(self.input_y)[0]
+                b = lambda iter_ind, preds: [iter_ind + 1,
+                                             tf.concat([preds, tf.expand_dims(self.all_y[inds[iter_ind], :], axis=0)],
+                                                       axis=0)]
+                r = tf.while_loop(c, b, loop_vars=[iter_ind, preds],
+                                  shape_invariants=[iter_ind.get_shape(), tf.TensorShape([None, num_classes])])
+
+                self.pred = r[1][1:, :]
+
             else:
                 self.pred = tf.nn.sigmoid(self.scores, name='no_round_preds')
 
@@ -249,32 +264,32 @@ class TextCNN_V2(object):
             self.correct_pred = tf.cast(tf.equal(self.pred, tf.round(self.input_y)), tf.float32)
             self.accuracy = tf.reduce_mean(self.correct_pred)
 
-        # # class-wise precision, recall, F1
-        # with tf.name_scope("PRF"):
-        #     y_intersect = tf.reduce_sum(self.correct_pred, axis=0) # num_class-dim vector
-        #     y_pred = tf.cast(tf.reduce_sum(self.pred, axis=0), tf.float32) + 0.001
-        #     y_true = tf.reduce_sum(self.input_y, axis=0) + 0.001
-        #
-        #     self.p = y_intersect / y_pred
-        #     self.r = y_intersect / y_true
-        #     self.f = 2 * self.p * self.r / (self.p+self.r)
-        #
-        #     self.weighted_f = tf.reduce_sum(self.f / (self.population / tf.reduce_sum(self.population)))
+            # # class-wise precision, recall, F1
+            # with tf.name_scope("PRF"):
+            #     y_intersect = tf.reduce_sum(self.correct_pred, axis=0) # num_class-dim vector
+            #     y_pred = tf.cast(tf.reduce_sum(self.pred, axis=0), tf.float32) + 0.001
+            #     y_true = tf.reduce_sum(self.input_y, axis=0) + 0.001
+            #
+            #     self.p = y_intersect / y_pred
+            #     self.r = y_intersect / y_true
+            #     self.f = 2 * self.p * self.r / (self.p+self.r)
+            #
+            #     self.weighted_f = tf.reduce_sum(self.f / (self.population / tf.reduce_sum(self.population)))
 
-# if __name__ == '__main__':
-#     lr =0.01
-#
-#     beta2 = 0.999
-#     beta1 = 0.9
-#
-#     t_ls = np.arange(0, int(1e6), dtype=np.float32)
-#     y_ls = []
-#     for t in t_ls:
-#         y_ls.append(lr * np.sqrt(1 - beta2**t) / (1 - beta1**t))
-#
-#     import matplotlib
-#     matplotlib.use('TkAgg')
-#     import matplotlib.pyplot as plt
-#
-#     plt.plot(t_ls, y_ls)
-#     plt.show()
+            # if __name__ == '__main__':
+            #     lr =0.01
+            #
+            #     beta2 = 0.999
+            #     beta1 = 0.9
+            #
+            #     t_ls = np.arange(0, int(1e6), dtype=np.float32)
+            #     y_ls = []
+            #     for t in t_ls:
+            #         y_ls.append(lr * np.sqrt(1 - beta2**t) / (1 - beta1**t))
+            #
+            #     import matplotlib
+            #     matplotlib.use('TkAgg')
+            #     import matplotlib.pyplot as plt
+            #
+            #     plt.plot(t_ls, y_ls)
+            #     plt.show()

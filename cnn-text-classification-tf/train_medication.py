@@ -92,7 +92,7 @@ if __name__ == '__main__':
     tf.flags.DEFINE_integer("dense_size", 64, "size of the dense layer")
     # regularization
     tf.flags.DEFINE_float("dropout_keep_prob", 0.5, "Dropout keep probability (default: 0.5)")
-    tf.flags.DEFINE_float("l2_reg_lambda", 0.001, "L2 regularization lambda (default: 0.0)")
+    tf.flags.DEFINE_float("l2_reg_lambda", 0.1, "L2 regularization lambda (default: 0.001)")
     # learning rate
     tf.flags.DEFINE_float("learning_rate", 0.0001, "learning rate")
     tf.flags.DEFINE_float("learning_rate_decay", 0.9, "learning rate decay")
@@ -143,7 +143,7 @@ if __name__ == '__main__':
     num_batches_per_epoch = data_loader.compute_numOf_batch(data_loader.partition_ind, FLAGS.batch_size)
 
     # Output directory for models and summaries
-    out_name = 'multilabel_' + 'CRF_' if FLAGS.use_crf else '' + str(data_loader.num_class)
+    out_name = 'multilabel_' + ('CRF_' if FLAGS.use_crf else '') + str(data_loader.num_class)
     out_dir = get_output_folder(FLAGS.output_dir, out_name)
     log_path = joinpath(out_dir, FLAGS.log_path)
     summary_dir = joinpath(out_dir, 'summary')
@@ -193,7 +193,10 @@ if __name__ == '__main__':
     train_loss_summary = tf.summary.scalar("train_loss", cnn.loss)
     l2_loss_summary = tf.summary.scalar("l2_loss", cnn.l2_loss)
     train_acc_summary = tf.summary.scalar("train_accuracy", cnn.accuracy)
-    train_summary_op = tf.summary.merge([train_loss_summary, l2_loss_summary, train_acc_summary])
+    train_u_score_summary = tf.summary.scalar("unary_score", cnn.unary_score)
+    train_bi_score_summary = tf.summary.scalar("binary_score", cnn.binary_score)
+    train_summary_op = tf.summary.merge([train_loss_summary, l2_loss_summary, train_acc_summary,
+                                         train_u_score_summary, train_bi_score_summary])
 
     # test summary
     test_mean_loss_pd = tf.placeholder(tf.float32, shape=None, name="test_mean_loss")
@@ -335,12 +338,14 @@ if __name__ == '__main__':
                      cnn.dropout_keep_prob: FLAGS.dropout_keep_prob,
                      cnn.is_training: True}
 
-        _, cur_step, summaries, loss, scores, acc = sess.run([train_op,
+        _, cur_step, summaries, loss, scores, acc, u, bi = sess.run([train_op,
                                                                global_step,
                                                                train_summary_op,
                                                                cnn.loss,
                                                                cnn.scores,
-                                                               cnn.accuracy], feed_dict)
+                                                               cnn.accuracy,
+                                                               cnn.unary_score,
+                                                               cnn.binary_score,], feed_dict)
 
         summary_writer.add_summary(summaries, cur_step)
         pbar.update(batch_num + 1)
