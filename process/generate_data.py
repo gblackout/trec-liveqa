@@ -934,7 +934,7 @@ def gen_label_index(container_dir, med_dict_path, numOf_label=50):
             print >> f, nc.get_admID(), ' '.join(med_mask)
 
 
-def gen_hypertension_label_index(uni_con_path, med_dict_path, med_freq_path, numOf_class):
+def gen_chronic_label_index(uni_con_path, med_dict_path, med_freq_path, numOf_class):
     if os.path.isfile('hyper_label_index'):
         os.remove('hyper_label_index')
 

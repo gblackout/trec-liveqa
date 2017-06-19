@@ -171,13 +171,14 @@ class TextCNN_V2(object):
         with tf.name_scope("dropout"):
             self.h_drop = tf.nn.dropout(self.h_pool_flat, self.dropout_keep_prob)
 
-        # concate with adm encodings
+        # TODO concate with adm encodings
         with tf.name_scope('concat'):
             self.h_drop = tf.concat([self.h_drop, self.input_adm], axis=-1)
 
         # relu dense layer
         with tf.name_scope("dense"):
-            W = tf.Variable(tf.truncated_normal(shape=[num_filters_total, dense_size], stddev=0.1), name="W")
+            # TODO
+            W = tf.Variable(tf.truncated_normal(shape=[num_filters_total+num_classes, dense_size], stddev=0.1), name="W")
             self.l2_loss += tf.nn.l2_loss(W)
             b = tf.Variable(tf.constant(0.1, shape=[dense_size]), name="b")
             self.scores = tf.nn.xw_plus_b(self.h_drop, W, b, name="lin_transform")

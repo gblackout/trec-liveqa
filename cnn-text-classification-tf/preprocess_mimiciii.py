@@ -162,7 +162,8 @@ class DataLoader:
 
 def get_doc_len(file_labels, threshold=0.8):
     doc_lens = []
-    for filepath, _ in file_labels:
+    # TODO ac hoc
+    for filepath, _, __ in file_labels:
         assert os.path.isfile(filepath), 'file not found at %s' % filepath
 
         nc = NoteContainer(filepath, mode=1)

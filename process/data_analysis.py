@@ -1,6 +1,7 @@
 from copy import deepcopy
 from generate_data import *
 import matplotlib
+from os.path import join as joinpath
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import numpy as np
@@ -70,7 +71,7 @@ def bar():
             break
 
 
-def hypertension_drugs(uni_con_path):
+def get_med_freq(uni_con_path, med_list_path, output_path):
 
     def findmed(meddict, seq):
         cnter = Counter()
@@ -82,7 +83,7 @@ def hypertension_drugs(uni_con_path):
 
     med_dict = {}
     med_reg = re.compile(r'\w+')
-    with open('hypertension_med_list') as f:
+    with open(med_list_path) as f:
         for line in f:
             generic_name, brand_names = line.split(':')
             brand_names = [(e.split()[0]).strip().lower() for e in brand_names.split(',') if med_reg.search(e)]
@@ -102,9 +103,9 @@ def hypertension_drugs(uni_con_path):
                     med_dict[k][1] += 1
                     break
 
-    pickle.dump(med_dict, open('med_dict', 'w'))
+    pickle.dump(med_dict, open(output_path+'_dict', 'w'))
     freq_ls = sorted([(k, v[1]) for k,v in med_dict.iteritems()], key=lambda x:x[1], reverse=True)
-    with open('hyper_med_freq', 'w') as f:
+    with open(output_path+'_freq', 'w') as f:
         for k, v in freq_ls:
             print >> f, k, v
 
@@ -203,7 +204,7 @@ def hypertension_drugs(uni_con_path):
 
 
 if __name__ == '__main__':
-    hypertension_drugs('uni_containers_tmp/')
+    get_med_freq('uni_containers_tmp/', 'diabetes_med_list', 'diabetes_med')
 
 
 
