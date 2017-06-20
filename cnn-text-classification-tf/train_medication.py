@@ -5,6 +5,7 @@ from os.path import join as joinpath
 from progressbar import ProgressBar
 from utils.misc import linesep, get_output_folder, makedir
 from utils.visualization import prf_summary, output_summary, curr_prf
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import tensorflow as tf, numpy as np
 from sklearn.metrics import jaccard_similarity_score
@@ -26,7 +27,7 @@ def prf(y_true, y_pred):
     """
     numOf_class = y_true.shape[1]
 
-    hits = np.sum(np.logical_and(y_true>0, y_pred>0), axis=0)
+    hits = np.sum(np.logical_and(y_true > 0, y_pred > 0), axis=0)
     true_sum = y_true.sum(axis=0)
     pred_sum = y_pred.sum(axis=0)
 
@@ -34,7 +35,7 @@ def prf(y_true, y_pred):
     for i in xrange(numOf_class):
         res[0][i] = p = hits[i] / pred_sum[i] if pred_sum[i] != 0 else 0
         res[1][i] = r = hits[i] / true_sum[i] if true_sum[i] != 0 else 0
-        res[2][i] = 2*p*r / (p+r) if (p+r) != 0 else 0
+        res[2][i] = 2 * p * r / (p + r) if (p + r) != 0 else 0
 
     return res
 
@@ -176,7 +177,6 @@ if __name__ == '__main__':
                      dense_size=FLAGS.dense_size,
                      l2_coef=FLAGS.l2_reg_lambda,
                      crf_lambda=FLAGS.crf_lambda,
-                     batch_size=FLAGS.batch_size,
                      use_crf=FLAGS.use_crf,
                      init_w2v=None,
                      freez_w2v=FLAGS.freez_w2v)
@@ -192,18 +192,21 @@ if __name__ == '__main__':
     # training summary
     train_loss_summary = tf.summary.scalar("train_loss", cnn.loss)
     l2_loss_summary = tf.summary.scalar("l2_loss", cnn.l2_loss)
-    train_acc_summary = tf.summary.scalar("train_accuracy", cnn.accuracy)
-    train_u_score_summary = tf.summary.scalar("unary_score", cnn.unary_score)
-    train_bi_score_summary = tf.summary.scalar("binary_score", cnn.binary_score)
-    train_cnn_acc_summary = tf.summary.scalar("train_cnn_accuracy", cnn.cnn_accuracy)
-    train_summary_op = tf.summary.merge([train_loss_summary, l2_loss_summary, train_acc_summary,
-                                         train_u_score_summary, train_bi_score_summary, train_cnn_acc_summary])
+    # train_acc_summary = tf.summary.scalar("train_accuracy", cnn.accuracy)
+    # train_u_score_summary = tf.summary.scalar("unary_score", cnn.unary_score)
+    # train_bi_score_summary = tf.summary.scalar("binary_score", cnn.binary_score)
+    # train_cnn_acc_summary = tf.summary.scalar("train_cnn_accuracy", cnn.cnn_accuracy)
+
+    train_summary_op = tf.summary.merge([train_loss_summary,
+                                         l2_loss_summary,
+                                         # train_acc_summary,
+                                         # train_u_score_summary,
+                                         # train_bi_score_summary,
+                                         # train_cnn_acc_summary
+                                         ])
 
     # test summary
-    # test_mean_loss_pd = tf.placeholder(tf.float32, shape=None, name="test_mean_loss")
     test_mean_acc_pd = tf.placeholder(tf.float32, shape=None, name="test_mean_acc")
-    # test_jaccard_pd = tf.placeholder(tf.float32, shape=None, name="test_jaccard")
-    # test_avg_f_pd = tf.placeholder(tf.float32, shape=None, name="test_avg_f")
     test_weighted_f_pd = tf.placeholder(tf.float32, shape=None, name="test_weighted_f")
     test_cnn_weighted_f_pd = tf.placeholder(tf.float32, shape=None, name="test_cnn_weighted_f")
     # images
@@ -218,28 +221,30 @@ if __name__ == '__main__':
     # record the best score on TEST set
     best_weighted_f1 = 0.0
 
-    # test_loss_summary = tf.summary.scalar("test_mean_loss", test_mean_loss_pd)
     test_acc_summary = tf.summary.scalar("test_mean_acc", test_mean_acc_pd)
-    # test_jaccard_summary = tf.summary.scalar("test_jaccard", test_jaccard_pd)
-    # test_avg_f_summary = tf.summary.scalar("test_avg_f", test_avg_f_pd)
     test_weighted_f_summary = tf.summary.scalar("test_weighted_f", test_weighted_f_pd)
-    test_cnn_weighted_f_summary = tf.summary.scalar("test_cnn_weighted_f", test_cnn_weighted_f_pd)
+    # test_cnn_weighted_f_summary = tf.summary.scalar("test_cnn_weighted_f", test_cnn_weighted_f_pd)
     test_precision_summary = tf.summary.image('test_precision', test_precision_pd)
     test_recall_summary = tf.summary.image('test_recall', test_recall_pd)
     test_fscore_summary = tf.summary.image('test_fscore', test_fscore_pd)
     test_dist_summary = tf.summary.image('test_distribution', test_dist_pd)
     test_curr_prf_summary = tf.summary.image('test_curr_prf', test_curr_prf_pd)
+
     test_summary_op = tf.summary.merge([test_acc_summary,
-                                        test_weighted_f_summary, test_cnn_weighted_f_summary, test_precision_summary,
+                                        test_weighted_f_summary,
+                                        # test_cnn_weighted_f_summary,
+                                        test_precision_summary,
                                         test_recall_summary,
-                                        test_fscore_summary, test_dist_summary, test_curr_prf_summary])
+                                        test_fscore_summary,
+                                        test_dist_summary,
+                                        test_curr_prf_summary
+                                        ])
 
     # best summaries
     best_test_weighted_f_summary = tf.summary.scalar("best_test_weighted_f", test_weighted_f_pd)
     best_test_curr_prf_summary = tf.summary.image('best_test_curr_prf', test_curr_prf_pd)
 
     best_test_summary_op = tf.summary.merge([best_test_weighted_f_summary, best_test_curr_prf_summary])
-
 
     # init writer and saver
     summary_writer = tf.summary.FileWriter(summary_dir, sess.graph)
@@ -265,7 +270,8 @@ if __name__ == '__main__':
 
         losses, acc_ls = [], []
         pbar = ProgressBar(maxval=num_batches).start()
-        for x_batch, y_batch, adm_batch, batch_num, is_epochComplete in d_loader.batcher(train=False, batch_size=FLAGS.batch_size):
+        for x_batch, y_batch, adm_batch, batch_num, is_epochComplete in d_loader.batcher(train=False,
+                                                                                         batch_size=FLAGS.batch_size):
             feed_dict = {cnn.input_x: x_batch,
                          cnn.input_y: y_batch,
                          cnn.input_adm: adm_batch,
@@ -279,8 +285,8 @@ if __name__ == '__main__':
 
             losses.append(loss)
             acc_ls.append(test_acc)
-            chunk_end = min((batch_num+1)*FLAGS.batch_size, data_size)
-            y_pred[batch_num*FLAGS.batch_size:chunk_end, :] = batch_pred
+            chunk_end = min((batch_num + 1) * FLAGS.batch_size, data_size)
+            y_pred[batch_num * FLAGS.batch_size:chunk_end, :] = batch_pred
             cnn_pred[batch_num * FLAGS.batch_size:chunk_end, :] = batch_cnn_pred
 
             pbar.update(batch_num + 1)
@@ -314,18 +320,14 @@ if __name__ == '__main__':
             update_best = False
 
         summaries = sess.run(test_summary_op,
-                             {
-                              # test_mean_loss_pd: np.mean(losses),
-                              test_mean_acc_pd: np.mean(acc_ls),
-                              # test_jaccard_pd: jaccard_sim,
-                              # test_avg_f_pd: np.mean(prf_ls[2]),
-                              test_weighted_f_pd: weighted_f,
-                              test_cnn_weighted_f_pd: cnn_weighted_f,
-                              test_precision_pd: np.expand_dims(prf_images[0], axis=0),
-                              test_recall_pd: np.expand_dims(prf_images[1], axis=0),
-                              test_fscore_pd: np.expand_dims(prf_images[2], axis=0),
-                              test_dist_pd: np.expand_dims(dist_image, axis=0),
-                              test_curr_prf_pd: np.expand_dims(curr_prf_image, axis=0)})
+                                {test_mean_acc_pd: np.mean(acc_ls),
+                                 test_weighted_f_pd: weighted_f,
+                                 test_cnn_weighted_f_pd: cnn_weighted_f,
+                                 test_precision_pd: np.expand_dims(prf_images[0], axis=0),
+                                 test_recall_pd: np.expand_dims(prf_images[1], axis=0),
+                                 test_fscore_pd: np.expand_dims(prf_images[2], axis=0),
+                                 test_dist_pd: np.expand_dims(dist_image, axis=0),
+                                 test_curr_prf_pd: np.expand_dims(curr_prf_image, axis=0)})
 
         summary_writer.add_summary(summaries, cur_step)
 
@@ -355,15 +357,18 @@ if __name__ == '__main__':
                      cnn.dropout_keep_prob: FLAGS.dropout_keep_prob,
                      cnn.is_training: True}
 
-        _, cur_step, summaries, loss, scores, acc, u, bi, cnn_acc = sess.run([train_op,
-                                                               global_step,
-                                                               train_summary_op,
-                                                               cnn.loss,
-                                                               cnn.scores,
-                                                               cnn.accuracy,
-                                                               cnn.unary_score,
-                                                               cnn.binary_score,
-                                                               cnn.cnn_accuracy], feed_dict)
+        res = sess.run([train_op,
+                        global_step,
+                        train_summary_op,
+                        cnn.loss,
+                        cnn.scores,
+                        # cnn.accuracy,
+                        # cnn.unary_score,
+                        # cnn.binary_score,
+                        # cnn.cnn_accuracy
+                        ], feed_dict)
+
+        cur_step, summaries = res[1:3]
 
         summary_writer.add_summary(summaries, cur_step)
         pbar.update(batch_num + 1)
@@ -379,7 +384,7 @@ if __name__ == '__main__':
                 saver.save(sess, joinpath(checkpoint_dir, 'best_model.ckpt'))
 
             pbar.start()
-            pbar.update(batch_num+1)
+            pbar.update(batch_num + 1)
 
         if is_epochComplete:
             pbar.finish()
