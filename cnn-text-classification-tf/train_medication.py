@@ -201,8 +201,7 @@ def main(FLAGS):
         print('[INFO] loading model from ', tf.train.latest_checkpoint(FLAGS.load_model_folder))
         saver.restore(sess, tf.train.latest_checkpoint(FLAGS.load_model_folder))
 
-    def evaluate(d_loader, prf_hist, dist_hist):
-        global best_weighted_f1
+    def evaluate(bestf1, d_loader, prf_hist, dist_hist):
         data_size = d_loader.X.shape[0] - d_loader.partition_ind
         num_batches = d_loader.compute_numOf_batch(data_size, FLAGS.batch_size)
 
@@ -246,8 +245,8 @@ def main(FLAGS):
         weighted_f = np.sum(weighted_f)
 
         # whether this model performs best? if so save it
-        if weighted_f > best_weighted_f1:
-            best_weighted_f1 = weighted_f
+        if weighted_f > bestf1:
+            bestf1 = weighted_f
             update_best = True
         else:
             update_best = False
@@ -270,10 +269,10 @@ def main(FLAGS):
                                        test_curr_prf_pd: np.expand_dims(curr_prf_image, axis=0)})
             summary_writer.add_summary(best_summaires, cur_step)
 
-        return prf_hist, dist_hist, update_best
+        return bestf1, prf_hist, dist_hist, update_best
 
     linesep('initial model evaluate')
-    prf_hist, dist_hist, update_best = evaluate(data_loader, prf_hist, dist_hist)
+    best_weighted_f1, prf_hist, dist_hist, update_best = evaluate(best_weighted_f1, data_loader, prf_hist, dist_hist)
 
     epoch_cnt = 0
     eval_bystep = FLAGS.evaluate_freq > 0
@@ -309,7 +308,8 @@ def main(FLAGS):
             pbar.finish()
 
             linesep('evaluate model at step %i' % cur_step)
-            prf_hist, dist_hist, update_best = evaluate(data_loader, prf_hist, dist_hist)
+            best_weighted_f1, prf_hist, dist_hist, update_best = \
+                evaluate(best_weighted_f1, data_loader, prf_hist, dist_hist)
 
             if update_best:
                 saver.save(sess, joinpath(checkpoint_dir, 'best_model.ckpt'))
@@ -323,7 +323,8 @@ def main(FLAGS):
             # eval model in epoch mode
             if not eval_bystep and (epoch_cnt % (-FLAGS.evaluate_freq) == 0):
                 linesep('evaluate model at epoch %i' % epoch_cnt)
-                prf_hist, dist_hist, update_best = evaluate(data_loader, prf_hist, dist_hist)
+                best_weighted_f1, prf_hist, dist_hist, update_best = \
+                    evaluate(best_weighted_f1, data_loader, prf_hist, dist_hist)
 
                 if update_best:
                     saver.save(sess, joinpath(checkpoint_dir, 'best_model.ckpt'))
