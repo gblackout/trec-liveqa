@@ -66,62 +66,7 @@ def get_session(args, shared=True):
     return session
 
 
-if __name__ == '__main__':
-    # ==================== Parameters ==============================
-
-    # paths
-
-    # TODO ad hoc
-    tf.flags.DEFINE_string("file_labels_fn", '../hyper_label_index_withadm', "")
-
-    tf.flags.DEFINE_string("stpwd_path", '../stpwd', "")
-    tf.flags.DEFINE_string("dataset_dir", '../uni_containers_tmp', "")
-    tf.flags.DEFINE_string("matdata_dir", '../hyper_mat_data', "")
-    tf.flags.DEFINE_string("w2v_path", '../full_table.npy', "")
-    tf.flags.DEFINE_string("output_dir", 'out', "main output directory")
-    tf.flags.DEFINE_string("log_path", 'log_file', "")
-    tf.flags.DEFINE_integer("load_model", 0, "load model file")
-    tf.flags.DEFINE_string("load_model_folder", './runs_sigmoid_1512/1494012307/checkpoints', "load model file")
-
-    tf.flags.DEFINE_integer("multilabel", 1, "softmax or sigmoid")
-    tf.flags.DEFINE_integer("max_doc_len", None, "max number of words allowed in a document")
-
-    # Model Hyperparameters
-    tf.flags.DEFINE_integer("embedding_dim", 128, "Dimensionality of character embedding (default: 128)")
-    tf.flags.DEFINE_integer("num_filters", 64, "Number of filters per filter size (default: 128)")
-    tf.flags.DEFINE_string("filter_sizes", "3,4,5", "Comma-separated filter sizes (default: '3,4,5')")
-    tf.flags.DEFINE_integer("dense_size", 64, "size of the dense layer")
-    # regularization
-    tf.flags.DEFINE_float("dropout_keep_prob", 0.5, "Dropout keep probability (default: 0.5)")
-    tf.flags.DEFINE_float("l2_reg_lambda", 0.1, "L2 regularization lambda (default: 0.001)")
-    # learning rate
-    tf.flags.DEFINE_float("learning_rate", 0.0001, "learning rate")
-    tf.flags.DEFINE_float("learning_rate_decay", 0.9, "learning rate decay")
-    tf.flags.DEFINE_float("decay_every_steps", 2000, "decay_every_steps")
-    # CRF
-    tf.flags.DEFINE_float("crf_lambda", 0.5, "")
-
-    # Training parameters
-    tf.flags.DEFINE_integer("batch_size", 24, "Batch Size (default: 64)")
-    tf.flags.DEFINE_integer("num_epochs", 500, "Number of training epochs (default: 200)")
-    # negative int -> every <evaluate_freq> epochs; positive int -> every <evaluate_freq> steps
-    tf.flags.DEFINE_integer("evaluate_freq", -1, "Evaluate model every <evaluate_freq> steps/epoch for pos/neg input")
-    tf.flags.DEFINE_integer("checkpoint_freq", 1, "Save model every <checkpoint_freq> epochs")
-    tf.flags.DEFINE_integer("num_checkpoints", 100, "Number of checkpoints to store")
-
-    # Misc Parameters
-    tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
-    tf.flags.DEFINE_boolean("log_device_placement", False, "Log placement of ops on devices")
-    tf.flags.DEFINE_boolean("freez_w2v", True, "")
-    tf.flags.DEFINE_boolean("use_crf", True, "")
-
-    FLAGS = tf.flags.FLAGS
-    FLAGS._parse_flags()
-
-    linesep('Parameter')
-    for attr, value in sorted(FLAGS.__flags.items()):
-        print '%s%s:    %s' % (attr.upper(), ' ' * (25 - len(attr)), str(value))
-
+def main(FLAGS):
     # ==================== Data Preparation ==============================
     linesep('Loading data')
     data_loader = preprocess_mimiciii.DataLoader(0.9, FLAGS.batch_size)
@@ -256,15 +201,12 @@ if __name__ == '__main__':
         print('[INFO] loading model from ', tf.train.latest_checkpoint(FLAGS.load_model_folder))
         saver.restore(sess, tf.train.latest_checkpoint(FLAGS.load_model_folder))
 
-
     def evaluate(d_loader, prf_hist, dist_hist):
         global best_weighted_f1
         data_size = d_loader.X.shape[0] - d_loader.partition_ind
         num_batches = d_loader.compute_numOf_batch(data_size, FLAGS.batch_size)
 
         y_pred = np.zeros((data_size, d_loader.num_class), dtype=np.float32)
-        # TODO ad hoc
-        cnn_pred = np.zeros((data_size, d_loader.num_class), dtype=np.float32)
 
         cur_step = tf.train.global_step(sess, global_step)
 
@@ -278,16 +220,12 @@ if __name__ == '__main__':
                          cnn.dropout_keep_prob: 1.0,
                          cnn.is_training: False}
 
-            loss, test_acc, batch_pred, batch_cnn_pred = sess.run([cnn.loss,
-                                                                   cnn.accuracy,
-                                                                   cnn.pred,
-                                                                   cnn.cnn_pred], feed_dict)
+            loss, test_acc, batch_pred = sess.run([cnn.loss, cnn.accuracy, cnn.pred], feed_dict)
 
             losses.append(loss)
             acc_ls.append(test_acc)
             chunk_end = min((batch_num + 1) * FLAGS.batch_size, data_size)
             y_pred[batch_num * FLAGS.batch_size:chunk_end, :] = batch_pred
-            cnn_pred[batch_num * FLAGS.batch_size:chunk_end, :] = batch_cnn_pred
 
             pbar.update(batch_num + 1)
 
@@ -297,7 +235,6 @@ if __name__ == '__main__':
 
         y_true = d_loader.Y[d_loader.partition_ind:, :]
 
-        jaccard_sim = jaccard_similarity_score(y_true, y_pred)
         prf_ls = prf(y_true, y_pred)
         prf_images, prf_hist = prf_summary(prf_hist, prf_ls)
         dist_image, dist_hist = output_summary(dist_hist, y_pred)
@@ -308,10 +245,6 @@ if __name__ == '__main__':
         weighted_f = weights * prf_ls[2]
         weighted_f = np.sum(weighted_f)
 
-        cnn_prf_ls = prf(y_true, cnn_pred)
-        cnn_weighted_f = weights * cnn_prf_ls[2]
-        cnn_weighted_f = np.sum(cnn_weighted_f)
-
         # whether this model performs best? if so save it
         if weighted_f > best_weighted_f1:
             best_weighted_f1 = weighted_f
@@ -320,14 +253,13 @@ if __name__ == '__main__':
             update_best = False
 
         summaries = sess.run(test_summary_op,
-                                {test_mean_acc_pd: np.mean(acc_ls),
-                                 test_weighted_f_pd: weighted_f,
-                                 test_cnn_weighted_f_pd: cnn_weighted_f,
-                                 test_precision_pd: np.expand_dims(prf_images[0], axis=0),
-                                 test_recall_pd: np.expand_dims(prf_images[1], axis=0),
-                                 test_fscore_pd: np.expand_dims(prf_images[2], axis=0),
-                                 test_dist_pd: np.expand_dims(dist_image, axis=0),
-                                 test_curr_prf_pd: np.expand_dims(curr_prf_image, axis=0)})
+                             {test_mean_acc_pd: np.mean(acc_ls),
+                              test_weighted_f_pd: weighted_f,
+                              test_precision_pd: np.expand_dims(prf_images[0], axis=0),
+                              test_recall_pd: np.expand_dims(prf_images[1], axis=0),
+                              test_fscore_pd: np.expand_dims(prf_images[2], axis=0),
+                              test_dist_pd: np.expand_dims(dist_image, axis=0),
+                              test_curr_prf_pd: np.expand_dims(curr_prf_image, axis=0)})
 
         summary_writer.add_summary(summaries, cur_step)
 
@@ -339,7 +271,6 @@ if __name__ == '__main__':
             summary_writer.add_summary(best_summaires, cur_step)
 
         return prf_hist, dist_hist, update_best
-
 
     linesep('initial model evaluate')
     prf_hist, dist_hist, update_best = evaluate(data_loader, prf_hist, dist_hist)
@@ -408,3 +339,82 @@ if __name__ == '__main__':
 
             linesep('train epoch %i' % epoch_cnt)
             pbar.start()
+
+    return out_name, best_weighted_f1
+
+if __name__ == '__main__':
+    # ==================== Parameters ==============================
+
+    # paths
+
+    # TODO ad hoc
+    tf.flags.DEFINE_string("file_labels_fn", '../hyper_label_index_withadm', "")
+
+    tf.flags.DEFINE_string("stpwd_path", '../stpwd', "")
+    tf.flags.DEFINE_string("dataset_dir", '../uni_containers_tmp', "")
+    tf.flags.DEFINE_string("matdata_dir", '../hyper_mat_data', "")
+    tf.flags.DEFINE_string("w2v_path", '../full_table.npy', "")
+    tf.flags.DEFINE_string("output_dir", 'out', "main output directory")
+    tf.flags.DEFINE_string("log_path", 'log_file', "")
+    tf.flags.DEFINE_integer("load_model", 0, "load model file")
+    tf.flags.DEFINE_string("load_model_folder", './runs_sigmoid_1512/1494012307/checkpoints', "load model file")
+
+    tf.flags.DEFINE_integer("multilabel", 1, "softmax or sigmoid")
+    tf.flags.DEFINE_integer("max_doc_len", None, "max number of words allowed in a document")
+
+    # Model Hyperparameters
+    tf.flags.DEFINE_integer("embedding_dim", 128, "Dimensionality of character embedding (default: 128)")
+    tf.flags.DEFINE_integer("num_filters", 64, "Number of filters per filter size (default: 128)")
+    tf.flags.DEFINE_string("filter_sizes", "3,4,5", "Comma-separated filter sizes (default: '3,4,5')")
+    tf.flags.DEFINE_integer("dense_size", 64, "size of the dense layer")
+    # regularization
+    tf.flags.DEFINE_float("dropout_keep_prob", 0.5, "Dropout keep probability (default: 0.5)")
+    tf.flags.DEFINE_float("l2_reg_lambda", 0.1, "L2 regularization lambda (default: 0.001)")
+    # learning rate
+    tf.flags.DEFINE_float("learning_rate", 0.0001, "learning rate")
+    tf.flags.DEFINE_float("learning_rate_decay", 0.9, "learning rate decay")
+    tf.flags.DEFINE_float("decay_every_steps", 2000, "decay_every_steps")
+    # CRF
+    tf.flags.DEFINE_float("crf_lambda", 0.5, "")
+
+    # Training parameters
+    tf.flags.DEFINE_integer("batch_size", 24, "Batch Size (default: 64)")
+    tf.flags.DEFINE_integer("num_epochs", 500, "Number of training epochs (default: 200)")
+    # negative int -> every <evaluate_freq> epochs; positive int -> every <evaluate_freq> steps
+    tf.flags.DEFINE_integer("evaluate_freq", -1, "Evaluate model every <evaluate_freq> steps/epoch for pos/neg input")
+    tf.flags.DEFINE_integer("checkpoint_freq", 1, "Save model every <checkpoint_freq> epochs")
+    tf.flags.DEFINE_integer("num_checkpoints", 100, "Number of checkpoints to store")
+
+    # Misc Parameters
+    tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
+    tf.flags.DEFINE_boolean("log_device_placement", False, "Log placement of ops on devices")
+    tf.flags.DEFINE_boolean("freez_w2v", True, "")
+    tf.flags.DEFINE_boolean("use_crf", True, "")
+
+    FLAGS = tf.flags.FLAGS
+    FLAGS._parse_flags()
+
+    # linesep('Parameter')
+    # for attr, value in sorted(FLAGS.__flags.items()):
+    #     print '%s%s:    %s' % (attr.upper(), ' ' * (25 - len(attr)), str(value))
+
+    # fine-tune hyper-parameters
+    while True:
+
+        FLAGS.num_epochs = 50
+
+        FLAGS.dropout_keep_prob = np.random.rand()
+        FLAGS.l2_reg_lambda = 10.0**np.random.randint(-6, 3)
+        FLAGS.learning_rate = 10.0**np.random.randint(-6, 0)
+        FLAGS.crf_lambda = 10.0**np.random.randint(-6, 4)
+        FLAGS.batch_size = [24, 32, 64][np.random.randint(3)]
+
+        linesep('Parameter')
+        for name, v in [['num_epochs', FLAGS.num_epochs], ['dropout_keep_prob', FLAGS.dropout_keep_prob], ['l2_reg_lambda', FLAGS.l2_reg_lambda],
+                        ['learning_rate', FLAGS.learning_rate], ['crf_lambda', FLAGS.crf_lambda], ['batch_size', FLAGS.batch_size]]:
+            print '%s%s:    %s' % (name, ' ' * (25 - len(name)), str(v))
+
+        # start training
+        out_name, best_weighted_f1 = main(FLAGS)
+        with open('performance_log', 'a') as f:
+            print >> f, '%s\t%.4f' % (out_name, best_weighted_f1)
