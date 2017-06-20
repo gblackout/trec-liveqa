@@ -341,7 +341,7 @@ def main(FLAGS):
             linesep('train epoch %i' % epoch_cnt)
             pbar.start()
 
-    return out_name, best_weighted_f1
+    return out_dir, best_weighted_f1
 
 if __name__ == '__main__':
     # ==================== Parameters ==============================
@@ -410,12 +410,18 @@ if __name__ == '__main__':
         FLAGS.crf_lambda = 10.0**np.random.randint(-6, 4)
         FLAGS.batch_size = [24, 32, 64][np.random.randint(3)]
 
+        param_list = [['num_epochs', FLAGS.num_epochs],
+                      ['dropout_keep_prob', FLAGS.dropout_keep_prob],
+                      ['l2_reg_lambda', FLAGS.l2_reg_lambda],
+                      ['learning_rate', FLAGS.learning_rate],
+                      ['crf_lambda', FLAGS.crf_lambda],
+                      ['batch_size', FLAGS.batch_size]]
+
         linesep('Parameter')
-        for name, v in [['num_epochs', FLAGS.num_epochs], ['dropout_keep_prob', FLAGS.dropout_keep_prob], ['l2_reg_lambda', FLAGS.l2_reg_lambda],
-                        ['learning_rate', FLAGS.learning_rate], ['crf_lambda', FLAGS.crf_lambda], ['batch_size', FLAGS.batch_size]]:
+        for name, v in param_list:
             print '%s%s:    %s' % (name, ' ' * (25 - len(name)), str(v))
 
         # start training
-        out_name, best_weighted_f1 = main(FLAGS)
+        out_dir, best_weighted_f1 = main(FLAGS)
         with open('performance_log', 'a') as f:
-            print >> f, '%s\t%.4f' % (out_name, best_weighted_f1)
+            print >> f, '%s\t%.4f\t%s' % (out_dir, best_weighted_f1, str(param_list))
