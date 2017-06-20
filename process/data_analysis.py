@@ -201,10 +201,23 @@ def get_med_freq(uni_con_path, med_list_path, output_path):
 
 
 
+def cov():
+    stats = []
+
+    with open('hyper_label_index_withadm') as f:
+        for line in f:
+            adm_id, adm_med, dis_med = line.split(';')
+            dis_med = map(int, dis_med.split())
+            stats.append(sum(dis_med))
+
+    print np.mean(stats), np.std(stats)
+
+    print np.max(stats), np.min(stats)
 
 
 if __name__ == '__main__':
-    get_med_freq('uni_containers_tmp/', 'diabetes_med_list', 'diabetes_med')
+    # get_med_freq('uni_containers_tmp/', 'diabetes_med_list', 'diabetes_med')
+    cov()
 
 
 

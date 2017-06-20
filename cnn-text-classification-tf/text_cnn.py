@@ -246,7 +246,7 @@ class TextCNN_V2(object):
             if use_crf:
                 inds = tf.argmax(all_loglikelihood, axis=-1, name='inds')
                 iter_ind = tf.constant(0)
-                preds = tf.constant([[-1] * num_classes])
+                preds = tf.constant([[-1.0] * num_classes])
 
                 c = lambda iter_ind, preds: iter_ind < tf.shape(self.input_y)[0]
                 b = lambda iter_ind, preds: [iter_ind + 1,
@@ -257,6 +257,11 @@ class TextCNN_V2(object):
 
                 self.pred = r[1][1:, :]
 
+                # TODO ad hoc
+                self.cnn_pred = tf.nn.sigmoid(self.scores, name='no_round_preds')
+                self.cnn_pred = tf.round(self.cnn_pred, name='preds')
+                self.cnn_correct_pred = tf.cast(tf.equal(self.cnn_pred, tf.round(self.input_y)), tf.float32)
+                self.cnn_accuracy = tf.reduce_mean(self.cnn_correct_pred)
             else:
                 self.pred = tf.nn.sigmoid(self.scores, name='no_round_preds')
 
