@@ -264,6 +264,9 @@ class TextCNN_V2(object):
                 self.cnn_accuracy = tf.reduce_mean(self.cnn_correct_pred)
             else:
                 self.pred = tf.nn.sigmoid(self.scores, name='no_round_preds')
+                # TODO ad hoc
+                self.cnn_pred = None
+                self.cnn_accuracy = None
 
             self.pred = tf.round(self.pred, name='preds')
             self.correct_pred = tf.cast(tf.equal(self.pred, tf.round(self.input_y)), tf.float32)

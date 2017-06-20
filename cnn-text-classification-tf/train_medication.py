@@ -200,10 +200,10 @@ if __name__ == '__main__':
                                          train_u_score_summary, train_bi_score_summary, train_cnn_acc_summary])
 
     # test summary
-    test_mean_loss_pd = tf.placeholder(tf.float32, shape=None, name="test_mean_loss")
+    # test_mean_loss_pd = tf.placeholder(tf.float32, shape=None, name="test_mean_loss")
     test_mean_acc_pd = tf.placeholder(tf.float32, shape=None, name="test_mean_acc")
-    test_jaccard_pd = tf.placeholder(tf.float32, shape=None, name="test_jaccard")
-    test_avg_f_pd = tf.placeholder(tf.float32, shape=None, name="test_avg_f")
+    # test_jaccard_pd = tf.placeholder(tf.float32, shape=None, name="test_jaccard")
+    # test_avg_f_pd = tf.placeholder(tf.float32, shape=None, name="test_avg_f")
     test_weighted_f_pd = tf.placeholder(tf.float32, shape=None, name="test_weighted_f")
     test_cnn_weighted_f_pd = tf.placeholder(tf.float32, shape=None, name="test_cnn_weighted_f")
     # images
@@ -218,10 +218,10 @@ if __name__ == '__main__':
     # record the best score on TEST set
     best_weighted_f1 = 0.0
 
-    test_loss_summary = tf.summary.scalar("test_mean_loss", test_mean_loss_pd)
+    # test_loss_summary = tf.summary.scalar("test_mean_loss", test_mean_loss_pd)
     test_acc_summary = tf.summary.scalar("test_mean_acc", test_mean_acc_pd)
-    test_jaccard_summary = tf.summary.scalar("test_jaccard", test_jaccard_pd)
-    test_avg_f_summary = tf.summary.scalar("test_avg_f", test_avg_f_pd)
+    # test_jaccard_summary = tf.summary.scalar("test_jaccard", test_jaccard_pd)
+    # test_avg_f_summary = tf.summary.scalar("test_avg_f", test_avg_f_pd)
     test_weighted_f_summary = tf.summary.scalar("test_weighted_f", test_weighted_f_pd)
     test_cnn_weighted_f_summary = tf.summary.scalar("test_cnn_weighted_f", test_cnn_weighted_f_pd)
     test_precision_summary = tf.summary.image('test_precision', test_precision_pd)
@@ -229,7 +229,7 @@ if __name__ == '__main__':
     test_fscore_summary = tf.summary.image('test_fscore', test_fscore_pd)
     test_dist_summary = tf.summary.image('test_distribution', test_dist_pd)
     test_curr_prf_summary = tf.summary.image('test_curr_prf', test_curr_prf_pd)
-    test_summary_op = tf.summary.merge([test_loss_summary, test_acc_summary, test_jaccard_summary, test_avg_f_summary,
+    test_summary_op = tf.summary.merge([test_acc_summary,
                                         test_weighted_f_summary, test_cnn_weighted_f_summary, test_precision_summary,
                                         test_recall_summary,
                                         test_fscore_summary, test_dist_summary, test_curr_prf_summary])
@@ -314,10 +314,11 @@ if __name__ == '__main__':
             update_best = False
 
         summaries = sess.run(test_summary_op,
-                             {test_mean_loss_pd: np.mean(losses),
+                             {
+                              # test_mean_loss_pd: np.mean(losses),
                               test_mean_acc_pd: np.mean(acc_ls),
-                              test_jaccard_pd: jaccard_sim,
-                              test_avg_f_pd: np.mean(prf_ls[2]),
+                              # test_jaccard_pd: jaccard_sim,
+                              # test_avg_f_pd: np.mean(prf_ls[2]),
                               test_weighted_f_pd: weighted_f,
                               test_cnn_weighted_f_pd: cnn_weighted_f,
                               test_precision_pd: np.expand_dims(prf_images[0], axis=0),
