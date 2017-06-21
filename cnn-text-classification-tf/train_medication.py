@@ -121,7 +121,8 @@ def main(FLAGS):
                      num_filters=FLAGS.num_filters,
                      dense_size=FLAGS.dense_size,
                      l2_coef=FLAGS.l2_reg_lambda,
-                     crf_lambda=FLAGS.crf_lambda,
+                     crf_lambda_quad=FLAGS.crf_lambda_quad,
+                     crf_lambda_cub=FLAGS.crf_lambda_cub,
                      use_crf=FLAGS.use_crf,
                      init_w2v=None,
                      freez_w2v=FLAGS.freez_w2v)
@@ -372,9 +373,10 @@ if __name__ == '__main__':
     tf.flags.DEFINE_float("dropout_keep_prob", 0.3, "Dropout keep probability (default: 0.5)")
     tf.flags.DEFINE_float("l2_reg_lambda", 1.0, "L2 regularization lambda (default: 0.001)")
     # learning rate
-    tf.flags.DEFINE_float("learning_rate", 0.001, "learning rate")
+    tf.flags.DEFINE_float("learning_rate", 0.01, "learning rate")
     # CRF
-    tf.flags.DEFINE_float("crf_lambda", 0.01, "")
+    tf.flags.DEFINE_float("crf_lambda_quad", 0.01, "")
+    tf.flags.DEFINE_float("crf_lambda_cub", 0.01, "")
 
     # Training parameters
     tf.flags.DEFINE_integer("batch_size", 64, "Batch Size (default: 64)")
@@ -400,19 +402,15 @@ if __name__ == '__main__':
     # fine-tune hyper-parameters
     while True:
 
-        FLAGS.num_epochs = 50
+        FLAGS.num_epochs = 25
         FLAGS.num_checkpoints = 10
 
-        FLAGS.dropout_keep_prob = np.random.uniform(0.25, 0.6)
-        FLAGS.learning_rate = 10.0**np.random.uniform(-3, -1)
-        FLAGS.crf_lambda = 10.0**np.random.randint(-3, 1)
+        FLAGS.crf_lambda_quad = 10.0 ** np.random.randint(-3, 0)
+        FLAGS.crf_lambda_cub = 10.0 ** np.random.randint(-3, 0)
 
         param_list = [['num_epochs', FLAGS.num_epochs],
-                      ['dropout_keep_prob', FLAGS.dropout_keep_prob],
-                      ['l2_reg_lambda', FLAGS.l2_reg_lambda],
-                      ['learning_rate', FLAGS.learning_rate],
-                      ['crf_lambda', FLAGS.crf_lambda],
-                      ['batch_size', FLAGS.batch_size]]
+                      ['crf_lambda_quad', FLAGS.crf_lambda_quad],
+                      ['crf_lambda_cub', FLAGS.crf_lambda_cub]]
 
         linesep('Parameter')
         for name, v in param_list:

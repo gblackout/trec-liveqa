@@ -88,7 +88,7 @@ class TextCNN(object):
 
 class TextCNN_V2(object):
     def __init__(self, sequence_length, num_classes, vocab_size, embedding_size, filter_sizes, num_filters, dense_size,
-                 l2_coef, crf_lambda, use_crf=True, init_w2v=None, freez_w2v=False):
+                 l2_coef, crf_lambda_quad, crf_lambda_cub, use_crf=True, init_w2v=None, freez_w2v=False):
         """
         init text cnn model
         
@@ -125,10 +125,18 @@ class TextCNN_V2(object):
         self.numOf_permu = self.all_y.shape[0]
         self.all_y = tf.constant(self.all_y, name='all_y')
 
-        # diag mask for multiplying A
-        self.diag_mask = np.ones((num_classes, num_classes), dtype=np.float32)
-        self.diag_mask[xrange(num_classes), xrange(num_classes)] = 0
-        self.diag_mask = tf.constant(self.diag_mask, name='diag_mask')
+        # diag mask for multiplying A and B
+        self.quad_diag_mask = np.ones((num_classes, num_classes), dtype=np.float32)
+        self.quad_diag_mask[xrange(num_classes), xrange(num_classes)] = 0
+
+        self.cub_diag_mask = np.ones((num_classes, num_classes, num_classes), dtype=np.float32)
+        self.cub_diag_mask[xrange(num_classes), xrange(num_classes), :] = 0
+        self.cub_diag_mask[xrange(num_classes), :, xrange(num_classes)] = 0
+        self.cub_diag_mask[:, xrange(num_classes), xrange(num_classes)] = 0
+        self.cub_diag_mask[xrange(num_classes), xrange(num_classes), xrange(num_classes)] = 0
+
+        self.quad_diag_mask = tf.constant(self.quad_diag_mask, name='quad_diag_mask')
+        self.cub_diag_mask = tf.constant(self.cub_diag_mask, name='cub_diag_mask')
 
         self.l2_loss = None
 
@@ -209,23 +217,36 @@ class TextCNN_V2(object):
         # CRF
         with tf.name_scope("CRF"):
             A = tf.Variable(tf.truncated_normal(shape=[num_classes, num_classes], stddev=0.1), name="A")
-            A_no_diag = A * self.diag_mask
+            A_no_diag = A * self.quad_diag_mask
+
+            B = tf.Variable(tf.truncated_normal(shape=[num_classes, num_classes, num_classes], stddev=0.1), name="B")
+            B_no_diag = B * self.cub_diag_mask
 
             # b X d * (k X d)^T = b X k
             phi_dot_all_y = tf.matmul(self.scores, self.all_y, transpose_b=True, name='phi_dot_all_y')
-            quad_all_y = crf_lambda * tf.reduce_sum(tf.matmul(self.all_y, A_no_diag) * self.all_y, axis=-1)  # k
+            quad_all_y = crf_lambda_quad * tf.reduce_sum(tf.matmul(self.all_y, A_no_diag) * self.all_y, axis=-1)  # k
+            cub_all_y = crf_lambda_cub * tf.reduce_sum(
+                tf.reduce_sum(tf.matmul(self.all_y, B_no_diag) * tf.expand_dims(self.all_y, axis=-1),
+                              axis=-1) * self.all_y, axis=-1)
 
             phi_dot_train_y = tf.reduce_sum(self.scores * self.input_y, axis=-1, name='phi_dot_train_y')  # b
-            quad_train_y = crf_lambda * tf.reduce_sum(tf.matmul(self.input_y, A_no_diag) * self.input_y, axis=-1)  # b
+            quad_train_y = crf_lambda_quad * tf.reduce_sum(tf.matmul(self.input_y, A_no_diag) * self.input_y, axis=-1)  # b
+            cub_train_y = crf_lambda_cub * tf.reduce_sum(
+                tf.reduce_sum(tf.matmul(self.input_y, B_no_diag) * tf.expand_dims(self.input_y, axis=-1),
+                              axis=-1) * self.input_y, axis=-1)
 
-            all_loglikelihood = tf.add(phi_dot_all_y, quad_all_y, name='all_loglikelihood')  # b X k
+            all_multi_potential = tf.add(quad_all_y, cub_all_y, name='all_multi_potential')
+            all_loglikelihood = tf.add(phi_dot_all_y, all_multi_potential, name='all_loglikelihood')  # b X k
             # the value of log(Z(phi_i)) as b-dim vector
             log_Z = tf.reduce_logsumexp(all_loglikelihood, axis=-1, name='log_z')
 
-            log_likelihood = tf.reduce_sum(phi_dot_train_y + quad_train_y - log_Z, axis=-1, name='log_likelihood')
+            train_multi_potential = tf.add(quad_train_y, cub_train_y, name='train_multi_potential')
+            log_likelihood = tf.reduce_sum(phi_dot_train_y + train_multi_potential - log_Z,
+                                           axis=-1, name='log_likelihood')
 
             self.unary_score = tf.reduce_sum(phi_dot_train_y - log_Z, axis=-1, name='unary_score')
             self.binary_score = tf.reduce_sum(quad_train_y - log_Z, axis=-1, name='binary_score')
+            self.cubic_score = tf.reduce_sum(cub_train_y - log_Z, axis=-1, name='binary_score')
 
         # Mean cross-entropy loss
         with tf.name_scope("loss"):
