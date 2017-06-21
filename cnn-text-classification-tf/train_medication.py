@@ -369,17 +369,15 @@ if __name__ == '__main__':
     tf.flags.DEFINE_string("filter_sizes", "3,4,5", "Comma-separated filter sizes (default: '3,4,5')")
     tf.flags.DEFINE_integer("dense_size", 64, "size of the dense layer")
     # regularization
-    tf.flags.DEFINE_float("dropout_keep_prob", 0.5, "Dropout keep probability (default: 0.5)")
-    tf.flags.DEFINE_float("l2_reg_lambda", 0.1, "L2 regularization lambda (default: 0.001)")
+    tf.flags.DEFINE_float("dropout_keep_prob", 0.3, "Dropout keep probability (default: 0.5)")
+    tf.flags.DEFINE_float("l2_reg_lambda", 1.0, "L2 regularization lambda (default: 0.001)")
     # learning rate
-    tf.flags.DEFINE_float("learning_rate", 0.0001, "learning rate")
-    tf.flags.DEFINE_float("learning_rate_decay", 0.9, "learning rate decay")
-    tf.flags.DEFINE_float("decay_every_steps", 2000, "decay_every_steps")
+    tf.flags.DEFINE_float("learning_rate", 0.001, "learning rate")
     # CRF
-    tf.flags.DEFINE_float("crf_lambda", 0.5, "")
+    tf.flags.DEFINE_float("crf_lambda", 0.01, "")
 
     # Training parameters
-    tf.flags.DEFINE_integer("batch_size", 24, "Batch Size (default: 64)")
+    tf.flags.DEFINE_integer("batch_size", 64, "Batch Size (default: 64)")
     tf.flags.DEFINE_integer("num_epochs", 500, "Number of training epochs (default: 200)")
     # negative int -> every <evaluate_freq> epochs; positive int -> every <evaluate_freq> steps
     tf.flags.DEFINE_integer("evaluate_freq", -1, "Evaluate model every <evaluate_freq> steps/epoch for pos/neg input")
@@ -403,12 +401,11 @@ if __name__ == '__main__':
     while True:
 
         FLAGS.num_epochs = 50
+        FLAGS.num_checkpoints = 10
 
-        FLAGS.dropout_keep_prob = np.random.rand()
-        FLAGS.l2_reg_lambda = 10.0**np.random.randint(-6, 3)
-        FLAGS.learning_rate = 10.0**np.random.randint(-6, 0)
-        FLAGS.crf_lambda = 10.0**np.random.randint(-6, 4)
-        FLAGS.batch_size = [24, 32, 64][np.random.randint(3)]
+        FLAGS.dropout_keep_prob = np.random.uniform(0.25, 0.6)
+        FLAGS.learning_rate = 10.0**np.random.uniform(-3, -1)
+        FLAGS.crf_lambda = 10.0**np.random.randint(-3, 1)
 
         param_list = [['num_epochs', FLAGS.num_epochs],
                       ['dropout_keep_prob', FLAGS.dropout_keep_prob],
