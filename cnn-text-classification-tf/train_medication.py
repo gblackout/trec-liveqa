@@ -121,8 +121,9 @@ def main(FLAGS):
                      num_filters=FLAGS.num_filters,
                      dense_size=FLAGS.dense_size,
                      l2_coef=FLAGS.l2_reg_lambda,
-                     crf_lambda_quad=FLAGS.crf_lambda_quad,
+                     crf_lambda_doub=FLAGS.crf_lambda_doub,
                      crf_lambda_cub=FLAGS.crf_lambda_cub,
+                     crf_lambda_quad=FLAGS.crf_lambda_quad,
                      use_crf=FLAGS.use_crf,
                      init_w2v=None,
                      freez_w2v=FLAGS.freez_w2v)
@@ -405,12 +406,14 @@ if __name__ == '__main__':
         FLAGS.num_epochs = 25
         FLAGS.num_checkpoints = 10
 
-        FLAGS.crf_lambda_quad = 10.0 ** np.random.randint(-3, 0)
+        FLAGS.crf_lambda_doub = 10.0 ** np.random.randint(-3, 0)
         FLAGS.crf_lambda_cub = 10.0 ** np.random.randint(-3, 0)
+        FLAGS.crf_lambda_quad = 10.0 ** np.random.randint(-3, 0)
 
         param_list = [['num_epochs', FLAGS.num_epochs],
-                      ['crf_lambda_quad', FLAGS.crf_lambda_quad],
-                      ['crf_lambda_cub', FLAGS.crf_lambda_cub]]
+                      ['crf_lambda_doub', FLAGS.crf_lambda_doub],
+                      ['crf_lambda_cub', FLAGS.crf_lambda_cub],
+                      ['crf_lambda_quad', FLAGS.crf_lambda_quad]]
 
         linesep('Parameter')
         for name, v in param_list:
