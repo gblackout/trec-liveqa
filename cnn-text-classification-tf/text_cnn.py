@@ -88,7 +88,8 @@ class TextCNN(object):
 
 class TextCNN_V2(object):
     def __init__(self, sequence_length, num_classes, vocab_size, embedding_size, filter_sizes, num_filters, dense_size,
-                 l2_coef, crf_lambda_doub, crf_lambda_cub, crf_lambda_quad, use_crf=True, init_w2v=None, freez_w2v=False):
+                 l2_coef, crf_lambda_doub, crf_lambda_cub, crf_lambda_quad, use_crf=True, init_w2v=None,
+                 freez_w2v=False):
         """
         init text cnn model
         
@@ -115,6 +116,7 @@ class TextCNN_V2(object):
         # Placeholders for input, output and dropout
         self.input_x = tf.placeholder(tf.int32, [None, sequence_length], name="input_x")
         self.input_adm = tf.placeholder(tf.float32, [None, num_classes], name="input_adm")
+        self.input_wiki = tf.placeholder(tf.float32, [None, sequence_length], name="input_adm")
         self.input_y = tf.placeholder(tf.float32, [None, num_classes], name="input_y")
         self.dropout_keep_prob = tf.placeholder(tf.float32, name="dropout_keep_prob")
         self.is_training = tf.placeholder(tf.bool, name='is_training')
@@ -218,40 +220,48 @@ class TextCNN_V2(object):
             B = tf.Variable(tf.truncated_normal(shape=[num_classes, num_classes, num_classes], stddev=0.1), name="B")
             B_no_diag = B * self.cub_diag_mask
 
-            C = tf.Variable(tf.truncated_normal(shape=[num_classes, num_classes, num_classes, num_classes], stddev=0.1), name="C")
+            C = tf.Variable(tf.truncated_normal(shape=[num_classes, num_classes,
+                                                       num_classes, num_classes], stddev=0.1),name="C")
             C_no_diag = C * self.quad_diag_mask
 
+            # ================= potential for all possible y =================
             # b X d * (k X d)^T = b X k
             phi_dot_all_y = tf.matmul(self.scores, self.all_y, transpose_b=True, name='phi_dot_all_y')
             doub_all_y = crf_lambda_doub * tf.reduce_sum(tf.matmul(self.all_y, A_no_diag) * self.all_y, axis=-1)  # k
             cub_all_y = crf_lambda_cub * tf.reduce_sum(
-                tf.reduce_sum(tf.tensordot(self.all_y, B_no_diag, ([1], [0])) * tf.expand_dims(self.all_y, axis=-1),
-                              axis=-1) * self.all_y, axis=-1)
+                                         tf.reduce_sum(
+                                         tf.tensordot(self.all_y, B_no_diag, ([1], [0])) *
+                                         tf.expand_dims(self.all_y, axis=-1),axis=-1) * self.all_y, axis=-1)
             quad_all_y = crf_lambda_quad * tf.reduce_sum(
-                tf.reduce_sum(
-                    tf.reduce_sum(
-                        tf.tensordot(self.all_y, C_no_diag, ([1], [0])) *
-                        tf.expand_dims(tf.expand_dims(self.all_y, axis=-1), axis=-1), axis=-1) *
-                    tf.expand_dims(self.all_y, axis=-1), axis=-1) * self.all_y, axis=-1)
+                                           tf.reduce_sum(
+                                           tf.reduce_sum(
+                                           tf.tensordot(self.all_y, C_no_diag, ([1], [0])) *
+                                           tf.expand_dims(tf.expand_dims(self.all_y, axis=-1), axis=-1), axis=-1) *
+                                           tf.expand_dims(self.all_y, axis=-1), axis=-1) * self.all_y, axis=-1)
 
+            # ================= potential for y in the batch =================
             phi_dot_train_y = tf.reduce_sum(self.scores * self.input_y, axis=-1, name='phi_dot_train_y')  # b
-            doub_train_y = crf_lambda_doub * tf.reduce_sum(tf.matmul(self.input_y, A_no_diag) * self.input_y, axis=-1)  # b
+            doub_train_y = crf_lambda_doub * tf.reduce_sum(tf.matmul(self.input_y, A_no_diag) * self.input_y, axis=-1)
             cub_train_y = crf_lambda_cub * tf.reduce_sum(
-                tf.reduce_sum(tf.tensordot(self.input_y, B_no_diag, ([1], [0])) * tf.expand_dims(self.input_y, axis=-1),
-                              axis=-1) * self.input_y, axis=-1)
+                                           tf.reduce_sum(
+                                           tf.tensordot(self.input_y, B_no_diag, ([1], [0])) *
+                                           tf.expand_dims(self.input_y, axis=-1), axis=-1) * self.input_y, axis=-1)
             quad_train_y = crf_lambda_quad * tf.reduce_sum(
-                tf.reduce_sum(
-                    tf.reduce_sum(
-                        tf.tensordot(self.input_y, C_no_diag, ([1], [0])) *
-                        tf.expand_dims(tf.expand_dims(self.input_y, axis=-1), axis=-1), axis=-1) *
-                    tf.expand_dims(self.input_y, axis=-1), axis=-1) * self.input_y, axis=-1)
+                                             tf.reduce_sum(
+                                             tf.reduce_sum(
+                                             tf.tensordot(self.input_y, C_no_diag, ([1], [0])) *
+                                             tf.expand_dims(tf.expand_dims(self.input_y, axis=-1), axis=-1), axis=-1) *
+                                             tf.expand_dims(self.input_y, axis=-1), axis=-1) * self.input_y, axis=-1)
 
-            all_multi_potential = tf.add(doub_all_y, cub_all_y, quad_all_y, name='all_multi_potential')
+            # ================= log parition function =================
+            all_multi_potential = tf.add(doub_all_y, tf.add(cub_all_y, quad_all_y), name='all_multi_potential')
             all_loglikelihood = tf.add(phi_dot_all_y, all_multi_potential, name='all_loglikelihood')  # b X k
             # the value of log(Z(phi_i)) as b-dim vector
             log_Z = tf.reduce_logsumexp(all_loglikelihood, axis=-1, name='log_z')
 
-            train_multi_potential = tf.add(doub_train_y, cub_train_y, quad_train_y, name='train_multi_potential')
+            # ================= log likelihood =================
+            train_multi_potential = tf.add(doub_train_y, tf.add(cub_train_y, quad_train_y),
+                                           name='train_multi_potential')
             log_likelihood = tf.reduce_sum(phi_dot_train_y + train_multi_potential - log_Z,
                                            axis=-1, name='log_likelihood')
 
@@ -337,7 +347,7 @@ class TextCNN_V2(object):
     def get_mask_tensor(dim):
         mask = np.ones(dim, dtype=np.float32)
         numOf_dim = len(dim)
-        numOf_class = dim(0)
+        numOf_class = dim[0]
 
         if numOf_dim == 2:
             inds = itertools.product(range(numOf_class), range(numOf_class))

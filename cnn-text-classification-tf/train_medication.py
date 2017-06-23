@@ -376,8 +376,9 @@ if __name__ == '__main__':
     # learning rate
     tf.flags.DEFINE_float("learning_rate", 0.01, "learning rate")
     # CRF
-    tf.flags.DEFINE_float("crf_lambda_quad", 0.01, "")
+    tf.flags.DEFINE_float("crf_lambda_doub", 0.1, "")
     tf.flags.DEFINE_float("crf_lambda_cub", 0.01, "")
+    tf.flags.DEFINE_float("crf_lambda_quad", 0.01, "")
 
     # Training parameters
     tf.flags.DEFINE_integer("batch_size", 64, "Batch Size (default: 64)")

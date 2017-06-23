@@ -21,6 +21,7 @@ class DataLoader:
         self.X = None
         self.Y = None
         self.admX = None
+        self.wikiX = None
         self.data_partition = data_partition
         self.partition_ind = None
         self.vocab_processor = None
@@ -37,10 +38,13 @@ class DataLoader:
         self.tk_regs = [lambda x:reg1.search(x) is not None,
                         lambda x:reg2.match(x) is not None]
 
-    def load_from_text(self, data_dir, labelfile_path, stpwd_path, max_doc_len=None, threshold=0.7, shuffle=True):
+    def load_from_text(self, data_dir, labelfile_path, stpwd_path, wiki_dir, max_doc_len=None, threshold=0.7, shuffle=True):
+
         assert os.path.isfile(labelfile_path), 'index file not found at %s' % labelfile_path
         assert os.path.isdir(data_dir), 'data dir not found at %s' % data_dir
         assert os.path.isfile(stpwd_path), 'stopwords file not found at %s' % stpwd_path
+        assert os.path.isdir(wiki_dir), 'wiki dir not found at %s' % wiki_dir
+
 
         # get all filenames and their labels
         file_labels = []
@@ -66,15 +70,8 @@ class DataLoader:
         with open(stpwd_path) as f:
             stpwd.update([line.strip() for line in f])
 
-        if max_doc_len is None:
-            assert threshold is not None, 'max_doc_len and threshold cannot be both None'
-            max_doc_len, thre_hist = get_doc_len(file_labels, threshold=threshold)
-            print '=====>> Using doc_len as %i with accumulated histogram %.3f' % (max_doc_len, thre_hist)
-
         if shuffle:
             random.shuffle(file_labels)
-
-        self.vocab_processor = learn.preprocessing.VocabularyProcessor(max_doc_len, min_frequency=3)
 
         # visit all json files, extract X and Y
         X, Y, admX = [], [], []
@@ -82,10 +79,10 @@ class DataLoader:
             assert os.path.exists(filepath), 'file not found %s' % filepath
 
             nc = NoteContainer(filepath, mode=1)
-            text_one = nc.fields_asText()[:max_doc_len]
+            text_one = nc.fields_asText()
 
             # stpwd removal
-            tokens = self.vocab_processor._tokenizer([text_one]).next()
+            tokens = learn.preprocessing.tokenizer([text_one]).next()
             filtered_tokens = [tk for tk in tokens if sum([reg(tk) for reg in self.tk_regs]) == 0]
             filtered_tokens = [tk for tk in filtered_tokens if tk not in stpwd]
 
@@ -93,7 +90,35 @@ class DataLoader:
             Y.append(label_vec)
             admX.append(adm_vec)
 
-        self.X = np.array(list(self.vocab_processor.fit_transform(X)))
+        if max_doc_len is None:
+            assert threshold is not None, 'max_doc_len and threshold cannot be both None'
+            max_doc_len, thre_hist = get_doc_len(X, threshold=threshold)
+            print '=====>> Using doc_len as %i with accumulated histogram %.3f' % (max_doc_len, thre_hist)
+
+        self.vocab_processor = learn.preprocessing.VocabularyProcessor(max_doc_len, min_frequency=3)
+
+        # # get all wiki docs
+        # punc_reg = re.compile(r'[^a-z0-9 ]', flags=re.IGNORECASE)
+        # space_reg = re.compile(r'\s+')
+        # wikiX = []
+        # for i, filename in enumerate(os.listdir(wiki_dir)):
+        #     with open(joinpath(filename, wiki_dir)) as f:
+        #         text_one = f.read()[:max_doc_len]
+        #
+        #     text_one = punc_reg.sub(' ', text_one)
+        #     text_one = space_reg.sub(' ', text_one)
+        #     text_one = text_one.strip().lower()
+        #
+        #     tokens = self.vocab_processor._tokenizer([text_one]).next()
+        #     filtered_tokens = [tk for tk in tokens if sum([reg(tk) for reg in self.tk_regs]) == 0]
+        #     filtered_tokens = [tk for tk in filtered_tokens if tk not in stpwd]
+        #     wikiX.append(' '.join(filtered_tokens))
+
+        self.vocab_processor.fit(X)
+        # self.vocab_processor.fit(wikiX)
+        self.X = np.array(list(self.vocab_processor.transform(X)))
+        # self.wikiX = np.array(list(self.vocab_processor.transform(wikiX)))
+
         self.Y = np.array(Y, dtype=np.float32)
         if admX[0] is not None:
             self.admX = np.array(admX, dtype=np.float32)
@@ -160,161 +185,34 @@ class DataLoader:
         return self.med_freq
 
 
-def get_doc_len(file_labels, threshold=0.8):
+def get_doc_len(X, threshold=0.8):
     doc_lens = []
     # TODO ac hoc
-    for filepath, _, __ in file_labels:
-        assert os.path.isfile(filepath), 'file not found at %s' % filepath
+    for text in X:
+        doc_lens.append(len(text.split()))
 
-        nc = NoteContainer(filepath, mode=1)
-        text_one = nc.fields_asText()
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
 
-        doc_lens.append(len(text_one.split()))
+    plt.hist(doc_lens, bins=100)
+    plt.tight_layout()
+    plt.savefig('doc_dist')
 
-    hist, bin_edges = np.histogram(doc_lens)
-    for i, edge in enumerate(bin_edges):
-        print('i {}, edge {}, portion {}'.format(i, edge, float(np.sum(hist[:i])) / float(np.sum(hist))))
-
-        if float(np.sum(hist[:i])) / float(np.sum(hist)) > threshold:
-            thre_edge = int(edge)
-            thre_hist = float(np.sum(hist[:i])) / float(np.sum(hist))
-            break
-
-    return thre_edge, thre_hist
+    import sys
+    sys.exit(0)
 
 
-def load_data(data_dir, labelfile_path, vocab_path, max_doc_len=None, threshold=0.7, shuffle=True):
-    """
-    main method for obtaining dataset
-    
-    input
-    -----
-    data_dir: 
-        directory containing the dataset
-    labelfile_path:
-        path to index file containing label and filepath
-    vocab_path:
-        previous VocabularyProcessor save path, if None then one is created at that path
-    max_doc_len:
-        max num of WORDS allowed in doc, if None then inferred by threshold
-    threshold:
-        threshold of distribution of doc length with which we infer the max_doc_len
-    shuffle:
-        set true to shuffle data when loading
-    
-    output
-    -----
-    X:
-        np.int64, num_samples * max_doc_len 
-    Y:
-        np.float32, num_samples * num_classes
-    max_doc_len:
-        max num of WORDS allowed in doc    
-    
-    """
+    # hist, bin_edges = np.histogram(doc_lens)
+    # for i, edge in enumerate(bin_edges):
+    #     print('i {}, edge {}, portion {}'.format(i, edge, float(np.sum(hist[:i])) / float(np.sum(hist))))
+    #
+    #     if float(np.sum(hist[:i])) / float(np.sum(hist)) > threshold:
+    #         thre_edge = int(edge)
+    #         thre_hist = float(np.sum(hist[:i])) / float(np.sum(hist))
+    #         break
 
-    assert os.path.isfile(labelfile_path), 'index file not found at %s' % labelfile_path
-
-    file_labels = []
-    with open(labelfile_path) as f:
-        for line in f:
-            parts = line.split()
-
-            filepath = parts[0]
-            mask_vec = parts[1:]
-
-            file_labels.append([joinpath(data_dir, filepath), map(int, mask_vec)])
-
-    if max_doc_len is None:
-        assert threshold is not None, 'max_doc_len and threshold cannot be both None'
-        max_doc_len, thre_hist = get_doc_len(file_labels, threshold=threshold)
-        print('=====>> Using doc_len as {} with accumulated histogram {:g}\n'.format(max_doc_len, thre_hist))
-
-    if shuffle:
-        random.shuffle(file_labels)
-
-    if vocab_path and os.path.isfile(vocab_path):
-        print '=====>> vocab file found'
-        vocab_processor = learn.preprocessing.VocabularyProcessor.restore(vocab_path)
-        assert len(vocab_processor.vocabulary_) > 100
-        save_flag = False
-    else:
-        print '=====>> vocab file not found, creating new one...'
-        vocab_processor = learn.preprocessing.VocabularyProcessor(max_doc_len, min_frequency=3)
-        save_flag = True
-
-    # visit all json files, extract X and Y
-    X, Y = [], []
-    for i, (filepath, label_vec) in enumerate(file_labels):
-        assert os.path.exists(filepath), 'file not found %s' % filepath
-
-        nc = NoteContainer(filepath, mode=1)
-        text_one = nc.fields_asText()[:max_doc_len]
-
-        X.append(text_one)
-        Y.append(label_vec)
-
-    if save_flag:
-        vocab_processor.fit(X)
-        assert len(vocab_processor.vocabulary_) > 100
-        vocab_processor.save(vocab_path)
-
-    X = np.array(list(vocab_processor.transform(X)))
-    Y = np.array(Y, dtype=np.float32)
-    print("Vocabulary Size       : {:d}".format(len(vocab_processor.vocabulary_)))
-
-    return X, Y, max_doc_len
-
-
-def batch_iter(x, y, batch_size, shuffle=True):
-    """
-    
-    input (shuffled)
-    ------
-    x: 
-        np.array(num_samples, max_doc_len) integer vector 
-    y: 
-        (num_samples, num_classes)    
-    
-    return
-    -----
-    x_batch: 
-        np.array(batch_size, max_doc_len)
-    y_batch: 
-        np.array(batch_size, num_classes)
-        
-    """
-    data_size = len(x)  # array can have len()
-    num_batches_per_epoch = int((data_size - 1) / batch_size) + 1
-
-    while True:
-        # Shuffle the data at each epoch
-        if shuffle:
-            shuffle_indices = np.random.permutation(np.arange(data_size))
-            x_shuffled = x[shuffle_indices]
-            y_shuffled = y[shuffle_indices]
-        else:
-            x_shuffled = x  # np.array(num_samples, 1014)
-            y_shuffled = y  # np.array(num_samples, 2)
-
-        for batch_num in range(num_batches_per_epoch):
-            start_index = batch_num * batch_size
-            end_index = min((batch_num + 1) * batch_size, data_size)
-            is_epochComplete = batch_num + 1 == num_batches_per_epoch
-
-            x_batch, y_batch = get_batched(x_shuffled, y_shuffled, start_index, end_index)
-
-            yield x_batch, y_batch, batch_num, is_epochComplete
-
-
-def get_batched(x, y, start_index, end_index):
-    """
-    # input: x : np.array(num_samples, max_doc_len), y : np.array(num_samples, num_classes), batch_start_index, batch_end_index
-    # return: x_batch: np.array(batch_size, max_doc_len), y_batch: np.array(batch_size, num_classes)
-    """
-    x_batch = x[start_index:end_index]
-    y_batch = y[start_index:end_index]
-    return x_batch, y_batch
+    return None, None
 
 
 if __name__ == '__main__':
