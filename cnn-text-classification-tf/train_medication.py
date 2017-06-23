@@ -73,7 +73,7 @@ def main(FLAGS):
 
     # TODO ad hoc
     data_loader.load_from_text(FLAGS.dataset_dir, FLAGS.file_labels_fn, FLAGS.stpwd_path,
-                               max_doc_len=FLAGS.max_doc_len)
+                               (FLAGS.portion_threshold, FLAGS.length_threshold))
 
     # try:
     #     data_loader.load_from_mat(FLAGS.matdata_dir)
@@ -363,7 +363,8 @@ if __name__ == '__main__':
     tf.flags.DEFINE_string("load_model_folder", './runs_sigmoid_1512/1494012307/checkpoints', "load model file")
 
     tf.flags.DEFINE_integer("multilabel", 1, "softmax or sigmoid")
-    tf.flags.DEFINE_integer("max_doc_len", None, "max number of words allowed in a document")
+    tf.flags.DEFINE_integer("portion_threshold", 0.85, "max number of words allowed in a document")
+    tf.flags.DEFINE_integer("length_threshold", None, "max number of words allowed in a document")
 
     # Model Hyperparameters
     tf.flags.DEFINE_integer("embedding_dim", 128, "Dimensionality of character embedding (default: 128)")
@@ -414,7 +415,9 @@ if __name__ == '__main__':
         param_list = [['num_epochs', FLAGS.num_epochs],
                       ['crf_lambda_doub', FLAGS.crf_lambda_doub],
                       ['crf_lambda_cub', FLAGS.crf_lambda_cub],
-                      ['crf_lambda_quad', FLAGS.crf_lambda_quad]]
+                      ['crf_lambda_quad', FLAGS.crf_lambda_quad],
+                      ['portion_threshold', FLAGS.portion_threshold],
+                      ['length_threshold', FLAGS.length_threshold]]
 
         linesep('Parameter')
         for name, v in param_list:

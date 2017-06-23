@@ -38,12 +38,18 @@ class DataLoader:
         self.tk_regs = [lambda x:reg1.search(x) is not None,
                         lambda x:reg2.match(x) is not None]
 
-    def load_from_text(self, data_dir, labelfile_path, stpwd_path, wiki_dir, max_doc_len=None, threshold=0.7, shuffle=True):
-
+    def load_from_text(self, data_dir, labelfile_path, stpwd_path, crop_threshold, shuffle=True):
+        """
+        input
+        -----
+        crop_threshold: 
+            (portion threshold, length threshold), specify how to crop doc. portion threshold is used whenever it's not
+            None
+        """
         assert os.path.isfile(labelfile_path), 'index file not found at %s' % labelfile_path
         assert os.path.isdir(data_dir), 'data dir not found at %s' % data_dir
         assert os.path.isfile(stpwd_path), 'stopwords file not found at %s' % stpwd_path
-        assert os.path.isdir(wiki_dir), 'wiki dir not found at %s' % wiki_dir
+        # assert os.path.isdir(wiki_dir), 'wiki dir not found at %s' % wiki_dir
 
 
         # get all filenames and their labels
@@ -74,7 +80,7 @@ class DataLoader:
             random.shuffle(file_labels)
 
         # visit all json files, extract X and Y
-        X, Y, admX = [], [], []
+        X, Y, admX, doc_lens = [], [], [], []
         for i, (filepath, label_vec, adm_vec) in enumerate(file_labels):
             assert os.path.exists(filepath), 'file not found %s' % filepath
 
@@ -85,15 +91,15 @@ class DataLoader:
             tokens = learn.preprocessing.tokenizer([text_one]).next()
             filtered_tokens = [tk for tk in tokens if sum([reg(tk) for reg in self.tk_regs]) == 0]
             filtered_tokens = [tk for tk in filtered_tokens if tk not in stpwd]
+            doc_lens.append(len(filtered_tokens))
 
-            X.append(' '.join(filtered_tokens))
+            X.append(filtered_tokens)
+
             Y.append(label_vec)
             admX.append(adm_vec)
 
-        if max_doc_len is None:
-            assert threshold is not None, 'max_doc_len and threshold cannot be both None'
-            max_doc_len, thre_hist = get_doc_len(X, threshold=threshold)
-            print '=====>> Using doc_len as %i with accumulated histogram %.3f' % (max_doc_len, thre_hist)
+        X, max_doc_len = crop_doc(X, doc_lens, zip(*crop_threshold))
+        X = [' '.join(e) for e in X]
 
         self.vocab_processor = learn.preprocessing.VocabularyProcessor(max_doc_len, min_frequency=3)
 
@@ -185,34 +191,34 @@ class DataLoader:
         return self.med_freq
 
 
-def get_doc_len(X, threshold=0.8):
-    doc_lens = []
-    # TODO ac hoc
-    for text in X:
-        doc_lens.append(len(text.split()))
+def crop_doc(X, doc_lens, portion_threshold=None, length_threshold=None):
 
-    import matplotlib
-    matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
+    length_flag = length_threshold is not None
+    if length_flag:
+        val = length_threshold
+    else:
+        assert portion_threshold is not None, 'give at least one of the thresholds'
+        val = portion_threshold
 
-    plt.hist(doc_lens, bins=100)
-    plt.tight_layout()
-    plt.savefig('doc_dist')
+    hist, bin_edges = np.histogram(doc_lens, bins=100)
+    max_doc_len, final_protion = 0, 0
+    for i, edge in enumerate(bin_edges):
+        cumu_portion = np.sum(hist[:i]) / np.sum(hist)
+        print('i {}, edge {}, portion {}'.format(i, edge, cumu_portion))
 
-    import sys
-    sys.exit(0)
+        comp = edge if length_flag else cumu_portion
 
+        if comp > val:
+            max_doc_len = int(np.ceil(edge))
+            final_protion = cumu_portion
+            break
 
-    # hist, bin_edges = np.histogram(doc_lens)
-    # for i, edge in enumerate(bin_edges):
-    #     print('i {}, edge {}, portion {}'.format(i, edge, float(np.sum(hist[:i])) / float(np.sum(hist))))
-    #
-    #     if float(np.sum(hist[:i])) / float(np.sum(hist)) > threshold:
-    #         thre_edge = int(edge)
-    #         thre_hist = float(np.sum(hist[:i])) / float(np.sum(hist))
-    #         break
+    print '=====>> Using doc_len %i covering %.3f of the totoal docs' % (max_doc_len, final_protion)
 
-    return None, None
+    for i in xrange(len(X)):
+        X[i] = X[i][:max_doc_len]
+
+    return X, max_doc_len
 
 
 if __name__ == '__main__':
