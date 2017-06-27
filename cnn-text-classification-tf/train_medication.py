@@ -10,7 +10,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import tensorflow as tf, numpy as np
 from sklearn.metrics import jaccard_similarity_score
 import preprocess_mimiciii
-from text_cnn import TextCNN, TextCNN_V2
+from text_cnn import TextCNN_V2
 
 
 def prf(y_true, y_pred):
@@ -408,7 +408,7 @@ if __name__ == '__main__':
     # fine-tune hyper-parameters
     while True:
 
-        FLAGS.num_epochs = 25
+        FLAGS.num_epochs = 15
         FLAGS.num_checkpoints = 10
 
         # FLAGS.crf_lambda_doub = 10.0 ** np.random.randint(-3, 0)

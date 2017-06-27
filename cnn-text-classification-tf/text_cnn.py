@@ -127,7 +127,7 @@ class TextCNN_V2(object):
                 feature_by_class.append(tf.concat([ehr_adm_features, wiki_mat], axis=-1, name='concat_wiki_%i' % i))
 
             # (num_class X batch_size) X (num_filters_total+num_class+num_filters_total)
-            self.all_features = tf.concat(feature_by_class, axis=0)
+            self.all_features = tf.concat(feature_by_class, axis=0, name='concat_feature_by_class')
 
         # relu dense layer
         with tf.name_scope("dense"):
@@ -143,14 +143,15 @@ class TextCNN_V2(object):
 
         # linear output
         with tf.name_scope("output"):
-            W = tf.Variable(tf.truncated_normal(shape=[dense_size, 1], stddev=0.1), name="W")
-            self.l2_loss += tf.nn.l2_loss(W)
-            b = tf.Variable(tf.constant(0.1, shape=[1]), name="b")
+            output = []
+            for i in xrange(num_classes):
+                W = tf.Variable(tf.truncated_normal(shape=[dense_size, 1], stddev=0.1), name="W_%i" % i)
+                self.l2_loss += tf.nn.l2_loss(W)
+                b = tf.Variable(tf.constant(0.1, shape=[1]), name="b_%i" % i)
 
-            self.scores = tf.nn.xw_plus_b(self.scores, W, b) # (num_class X batch_size)
+                output.append(tf.nn.xw_plus_b(self.scores[numOf_batch*i:numOf_batch*(i+1)], W, b)) # (num_class X batch_size)
 
-            self.scores = tf.reshape(self.scores, [num_classes, numOf_batch])
-            self.scores = tf.transpose(self.scores, [1, 0]) # batch_size X num_class
+            self.scores = tf.concat(output, axis=-1)
 
         # ======================================================================================================
         #                                                CRF
