@@ -98,7 +98,7 @@ class DataLoader:
             Y.append(label_vec)
             admX.append(adm_vec)
 
-        X, max_doc_len = crop_doc(X, doc_lens, zip(*crop_threshold))
+        X, max_doc_len = crop_doc(X, doc_lens, *crop_threshold)
         X = [' '.join(e) for e in X]
 
         self.vocab_processor = learn.preprocessing.VocabularyProcessor(max_doc_len, min_frequency=3)
