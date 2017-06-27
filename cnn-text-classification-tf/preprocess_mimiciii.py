@@ -38,7 +38,7 @@ class DataLoader:
         self.tk_regs = [lambda x:reg1.search(x) is not None,
                         lambda x:reg2.match(x) is not None]
 
-    def load_from_text(self, data_dir, labelfile_path, stpwd_path, crop_threshold, shuffle=True):
+    def load_from_text(self, data_dir, labelfile_path, stpwd_path, crop_threshold, wiki_dir, shuffle=True):
         """
         input
         -----
@@ -49,7 +49,7 @@ class DataLoader:
         assert os.path.isfile(labelfile_path), 'index file not found at %s' % labelfile_path
         assert os.path.isdir(data_dir), 'data dir not found at %s' % data_dir
         assert os.path.isfile(stpwd_path), 'stopwords file not found at %s' % stpwd_path
-        # assert os.path.isdir(wiki_dir), 'wiki dir not found at %s' % wiki_dir
+        assert os.path.isdir(wiki_dir), 'wiki dir not found at %s' % wiki_dir
 
 
         # get all filenames and their labels
@@ -103,27 +103,27 @@ class DataLoader:
 
         self.vocab_processor = learn.preprocessing.VocabularyProcessor(max_doc_len, min_frequency=3)
 
-        # # get all wiki docs
-        # punc_reg = re.compile(r'[^a-z0-9 ]', flags=re.IGNORECASE)
-        # space_reg = re.compile(r'\s+')
-        # wikiX = []
-        # for i, filename in enumerate(os.listdir(wiki_dir)):
-        #     with open(joinpath(filename, wiki_dir)) as f:
-        #         text_one = f.read()[:max_doc_len]
-        #
-        #     text_one = punc_reg.sub(' ', text_one)
-        #     text_one = space_reg.sub(' ', text_one)
-        #     text_one = text_one.strip().lower()
-        #
-        #     tokens = self.vocab_processor._tokenizer([text_one]).next()
-        #     filtered_tokens = [tk for tk in tokens if sum([reg(tk) for reg in self.tk_regs]) == 0]
-        #     filtered_tokens = [tk for tk in filtered_tokens if tk not in stpwd]
-        #     wikiX.append(' '.join(filtered_tokens))
+        # get all wiki docs
+        punc_reg = re.compile(r'[^a-z0-9 ]', flags=re.IGNORECASE)
+        space_reg = re.compile(r'\s+')
+        wikiX = []
+        for i in xrange(len(Y[0])):
+            with open(joinpath(wiki_dir, str(i)+'.txt')) as f:
+                text_one = f.read()
+
+            text_one = punc_reg.sub(' ', text_one)
+            text_one = space_reg.sub(' ', text_one)
+            text_one = text_one.strip().lower()
+
+            tokens = self.vocab_processor._tokenizer([text_one]).next()
+            filtered_tokens = [tk for tk in tokens if sum([reg(tk) for reg in self.tk_regs]) == 0]
+            filtered_tokens = [tk for tk in filtered_tokens if tk not in stpwd]
+            wikiX.append(' '.join(filtered_tokens[:max_doc_len]))
 
         self.vocab_processor.fit(X)
-        # self.vocab_processor.fit(wikiX)
+        self.vocab_processor.fit(wikiX)
         self.X = np.array(list(self.vocab_processor.transform(X)))
-        # self.wikiX = np.array(list(self.vocab_processor.transform(wikiX)))
+        self.wikiX = np.array(list(self.vocab_processor.transform(wikiX)))
 
         self.Y = np.array(Y, dtype=np.float32)
         if admX[0] is not None:
@@ -203,7 +203,7 @@ def crop_doc(X, doc_lens, portion_threshold=None, length_threshold=None):
     hist, bin_edges = np.histogram(doc_lens, bins=100)
     max_doc_len, final_protion = 0, 0
     for i, edge in enumerate(bin_edges):
-        cumu_portion = np.sum(hist[:i]) / np.sum(hist)
+        cumu_portion = np.sum(hist[:i], dtype=np.float32) / np.sum(hist)
         print('i {}, edge {}, portion {}'.format(i, edge, cumu_portion))
 
         comp = edge if length_flag else cumu_portion

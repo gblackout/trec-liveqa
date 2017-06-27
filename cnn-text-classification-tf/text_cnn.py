@@ -115,9 +115,10 @@ class TextCNN_V2(object):
         """
         # Placeholders for input, output and dropout
         self.input_x = tf.placeholder(tf.int32, [None, sequence_length], name="input_x")
+        self.input_wiki = tf.placeholder(tf.float32, [None, sequence_length], name="input_wiki")
         self.input_adm = tf.placeholder(tf.float32, [None, num_classes], name="input_adm")
-        self.input_wiki = tf.placeholder(tf.float32, [None, sequence_length], name="input_adm")
         self.input_y = tf.placeholder(tf.float32, [None, num_classes], name="input_y")
+
         self.dropout_keep_prob = tf.placeholder(tf.float32, name="dropout_keep_prob")
         self.is_training = tf.placeholder(tf.bool, name='is_training')
         self.population = tf.placeholder(tf.int32, shape=num_classes, name="input_x")
@@ -137,6 +138,9 @@ class TextCNN_V2(object):
         self.quad_diag_mask = tf.constant(self.quad_diag_mask, name='quad_diag_mask')
 
         self.l2_loss = None
+
+        with tf.name_scope("concat_wiki"):
+            self.input_x = tf.concat(self.input_wiki, self.input_x, axis=0) # (num_class+batch_size) X seq_len
 
         # either learn a new one or load from a pretrained-one
         with tf.name_scope("embedding"):
@@ -190,29 +194,48 @@ class TextCNN_V2(object):
         with tf.name_scope("dropout"):
             self.h_drop = tf.nn.dropout(self.h_pool_flat, self.dropout_keep_prob)
 
-        # TODO concate with adm encodings
-        with tf.name_scope('concat'):
+        # split wiki; concat adm; tile wiki; concate wiki by class
+        with tf.name_scope('split_concat_tile'):
+            self.wiki_features = self.h_drop[:num_classes]
+            self.h_drop = self.h_drop[num_classes:]
+
             self.h_drop = tf.concat([self.h_drop, self.input_adm], axis=-1)
+
+            feature_by_class = []
+            numOf_batch = tf.shape(self.scores)[0]
+            for i in xrange(num_classes):
+                wiki_mat = tf.tile(self.wiki_features[i], [numOf_batch])
+                feature_by_class.append(tf.concat([self.scores, wiki_mat], axis=-1))
+
+            # (num_class X batch_size) X (num_filters_total+num_class+num_class)
+            self.h_drop = tf.concat(feature_by_class, axis=0)
 
         # relu dense layer
         with tf.name_scope("dense"):
-            # TODO
-            W = tf.Variable(tf.truncated_normal(shape=[num_filters_total + num_classes, dense_size], stddev=0.1),
+            # TODO ad hoc
+            W = tf.Variable(tf.truncated_normal(shape=[num_filters_total + num_classes * 2, dense_size], stddev=0.1),
                             name="W")
             self.l2_loss += tf.nn.l2_loss(W)
             b = tf.Variable(tf.constant(0.1, shape=[dense_size]), name="b")
+
             self.scores = tf.nn.xw_plus_b(self.h_drop, W, b, name="lin_transform")
             self.scores = tf.contrib.layers.batch_norm(self.scores, is_training=self.is_training)
             self.scores = tf.nn.relu(self.scores, name="relu")
 
         # linear output
         with tf.name_scope("output"):
-            W = tf.Variable(tf.truncated_normal(shape=[dense_size, num_classes], stddev=0.1), name="W")
+            W = tf.Variable(tf.truncated_normal(shape=[dense_size, 1], stddev=0.1), name="W")
             self.l2_loss += tf.nn.l2_loss(W)
-            b = tf.Variable(tf.constant(0.1, shape=[num_classes]), name="b")
-            self.scores = tf.nn.xw_plus_b(self.scores, W, b, name="lin_transform")
+            b = tf.Variable(tf.constant(0.1, shape=[1]), name="b")
 
-        # CRF
+            self.scores = tf.nn.xw_plus_b(self.scores, W, b) # (num_class X batch_size)
+
+            self.scores = tf.reshape(self.scores, [num_classes, numOf_batch])
+            self.scores = tf.transpose(self.scores, [1, 0]) # batch_size X num_class
+
+        # ======================================================================================================
+        #                                                CRF
+        # ======================================================================================================
         with tf.name_scope("CRF"):
             A = tf.Variable(tf.truncated_normal(shape=[num_classes, num_classes], stddev=0.1), name="A")
             A_no_diag = A * self.doub_diag_mask

@@ -73,7 +73,7 @@ def main(FLAGS):
 
     # TODO ad hoc
     data_loader.load_from_text(FLAGS.dataset_dir, FLAGS.file_labels_fn, FLAGS.stpwd_path,
-                               (FLAGS.portion_threshold, FLAGS.length_threshold))
+                               [FLAGS.portion_threshold, FLAGS.length_threshold], FLAGS.wiki_dir)
 
     # try:
     #     data_loader.load_from_mat(FLAGS.matdata_dir)
@@ -218,6 +218,7 @@ def main(FLAGS):
             feed_dict = {cnn.input_x: x_batch,
                          cnn.input_y: y_batch,
                          cnn.input_adm: adm_batch,
+                         cnn.input_wiki: d_loader.wikiX,
                          cnn.dropout_keep_prob: 1.0,
                          cnn.is_training: False}
 
@@ -286,6 +287,7 @@ def main(FLAGS):
         feed_dict = {cnn.input_x: x_batch,
                      cnn.input_y: y_batch,
                      cnn.input_adm: adm_batch,
+                     cnn.input_wiki: data_loader.wikiX,
                      cnn.dropout_keep_prob: FLAGS.dropout_keep_prob,
                      cnn.is_training: True}
 
@@ -353,6 +355,7 @@ if __name__ == '__main__':
     # TODO ad hoc
     tf.flags.DEFINE_string("file_labels_fn", '../hyper_label_index_withadm', "")
 
+    tf.flags.DEFINE_string("wiki_dir", '../wiki_hyper', "")
     tf.flags.DEFINE_string("stpwd_path", '../stpwd', "")
     tf.flags.DEFINE_string("dataset_dir", '../uni_containers_tmp', "")
     tf.flags.DEFINE_string("matdata_dir", '../hyper_mat_data', "")
@@ -408,9 +411,9 @@ if __name__ == '__main__':
         FLAGS.num_epochs = 25
         FLAGS.num_checkpoints = 10
 
-        FLAGS.crf_lambda_doub = 10.0 ** np.random.randint(-3, 0)
-        FLAGS.crf_lambda_cub = 10.0 ** np.random.randint(-3, 0)
-        FLAGS.crf_lambda_quad = 10.0 ** np.random.randint(-3, 0)
+        # FLAGS.crf_lambda_doub = 10.0 ** np.random.randint(-3, 0)
+        # FLAGS.crf_lambda_cub = 10.0 ** np.random.randint(-3, 0)
+        # FLAGS.crf_lambda_quad = 10.0 ** np.random.randint(-3, 0)
 
         param_list = [['num_epochs', FLAGS.num_epochs],
                       ['crf_lambda_doub', FLAGS.crf_lambda_doub],
