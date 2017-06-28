@@ -112,46 +112,62 @@ class TextCNN_V2(object):
         with tf.name_scope("dropout"):
             self.h_drop = tf.nn.dropout(self.h_pool_flat, self.dropout_keep_prob)
 
-        # split wiki; concat adm; tile wiki; concat wiki by class
-        with tf.name_scope('split_concat_tile'):
+        # ================= direct dot product =================
+        with tf.name_scope('split'):
             wiki_features = self.h_drop[:num_classes]
             ehr_features = self.h_drop[num_classes:]
             numOf_batch = tf.shape(ehr_features)[0]
 
-            ehr_adm_features = tf.concat([ehr_features, self.input_adm], axis=-1, name='concat_adm')
-
+        with tf.name_scope('dot_product'):
             feature_by_class = []
             for i in xrange(num_classes):
                 wiki_mat = tf.tile(wiki_features[i], [numOf_batch])
                 wiki_mat = tf.reshape(wiki_mat, [numOf_batch, num_filters_total])
-                feature_by_class.append(tf.concat([ehr_adm_features, wiki_mat], axis=-1, name='concat_wiki_%i' % i))
+                feature_by_class.append(tf.reduce_sum(ehr_features * wiki_mat, axis=-1))
+            self.scores = tf.concat(feature_by_class, axis=-1)
 
-            # (num_class X batch_size) X (num_filters_total+num_class+num_filters_total)
-            self.all_features = tf.concat(feature_by_class, axis=0, name='concat_feature_by_class')
-
-        # relu dense layer
-        with tf.name_scope("dense"):
-            # TODO ad hoc
-            W = tf.Variable(tf.truncated_normal(shape=[num_filters_total*2 + num_classes, dense_size], stddev=0.1),
-                            name="W")
-            self.l2_loss += tf.nn.l2_loss(W)
-            b = tf.Variable(tf.constant(0.1, shape=[dense_size]), name="b")
-
-            self.scores = tf.nn.xw_plus_b(self.all_features, W, b, name="lin_transform")
-            self.scores = tf.contrib.layers.batch_norm(self.scores, is_training=self.is_training)
-            self.scores = tf.nn.relu(self.scores, name="relu")
-
-        # linear output
-        with tf.name_scope("output"):
-            output = []
-            for i in xrange(num_classes):
-                W = tf.Variable(tf.truncated_normal(shape=[dense_size, 1], stddev=0.1), name="W_%i" % i)
-                self.l2_loss += tf.nn.l2_loss(W)
-                b = tf.Variable(tf.constant(0.1, shape=[1]), name="b_%i" % i)
-
-                output.append(tf.nn.xw_plus_b(self.scores[numOf_batch*i:numOf_batch*(i+1)], W, b)) # (num_class X batch_size)
-
-            self.scores = tf.concat(output, axis=-1)
+        # # ================= EHR concat wiki then dense =================
+        #
+        # # split wiki; concat adm; tile wiki; concat wiki by class
+        # with tf.name_scope('split_concat_tile'):
+        #     wiki_features = self.h_drop[:num_classes]
+        #     ehr_features = self.h_drop[num_classes:]
+        #     numOf_batch = tf.shape(ehr_features)[0]
+        #
+        #     ehr_adm_features = tf.concat([ehr_features, self.input_adm], axis=-1, name='concat_adm')
+        #
+        #     feature_by_class = []
+        #     for i in xrange(num_classes):
+        #         wiki_mat = tf.tile(wiki_features[i], [numOf_batch])
+        #         wiki_mat = tf.reshape(wiki_mat, [numOf_batch, num_filters_total])
+        #         feature_by_class.append(tf.concat([ehr_adm_features, wiki_mat], axis=-1, name='concat_wiki_%i' % i))
+        #
+        #     # (num_class X batch_size) X (num_filters_total+num_class+num_filters_total)
+        #     self.all_features = tf.concat(feature_by_class, axis=0, name='concat_feature_by_class')
+        #
+        # # relu dense layer
+        # with tf.name_scope("dense"):
+        #     # TODO ad hoc
+        #     W = tf.Variable(tf.truncated_normal(shape=[num_filters_total*2 + num_classes, dense_size], stddev=0.1),
+        #                     name="W")
+        #     self.l2_loss += tf.nn.l2_loss(W)
+        #     b = tf.Variable(tf.constant(0.1, shape=[dense_size]), name="b")
+        #
+        #     self.scores = tf.nn.xw_plus_b(self.all_features, W, b, name="lin_transform")
+        #     self.scores = tf.contrib.layers.batch_norm(self.scores, is_training=self.is_training)
+        #     self.scores = tf.nn.relu(self.scores, name="relu")
+        #
+        # # linear output
+        # with tf.name_scope("output"):
+        #     output = []
+        #     for i in xrange(num_classes):
+        #         W = tf.Variable(tf.truncated_normal(shape=[dense_size, 1], stddev=0.1), name="W_%i" % i)
+        #         self.l2_loss += tf.nn.l2_loss(W)
+        #         b = tf.Variable(tf.constant(0.1, shape=[1]), name="b_%i" % i)
+        #
+        #         output.append(tf.nn.xw_plus_b(self.scores[numOf_batch*i:numOf_batch*(i+1)], W, b)) # (num_class X batch_size)
+        #
+        #     self.scores = tf.concat(output, axis=-1)
 
         # ======================================================================================================
         #                                                CRF
