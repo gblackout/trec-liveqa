@@ -410,19 +410,25 @@ if __name__ == '__main__':
     # fine-tune hyper-parameters
     while True:
 
-        FLAGS.num_epochs = 15
-        FLAGS.num_checkpoints = 10
+        FLAGS.num_epochs = 30
+        FLAGS.num_checkpoints = 1
 
-        # FLAGS.crf_lambda_doub = 10.0 ** np.random.randint(-3, 0)
-        # FLAGS.crf_lambda_cub = 10.0 ** np.random.randint(-3, 0)
-        # FLAGS.crf_lambda_quad = 10.0 ** np.random.randint(-3, 0)
+        FLAGS.crf_lambda_doub = 10.0 ** np.random.randint(-2, 0)
+        FLAGS.crf_lambda_cub = 10.0 ** np.random.randint(-3, -1)
+        FLAGS.crf_lambda_quad = 10.0 ** np.random.randint(-3, -1)
+        FLAGS.portion_threshold = [0.8, 0.85, 0.9, 0.95][np.random.randint(0, 4)]
+        FLAGS.dropout_keep_prob = [0.2, 0.3, 0.4, 0.5, 0.6][np.random.randint(0, 5)]
+        FLAGS.dense_size = [32, 64, 128][np.random.randint(0, 3)]
+        FLAGS.num_filters = [32, 64, 128][np.random.randint(0, 3)]
 
         param_list = [['num_epochs', FLAGS.num_epochs],
                       ['crf_lambda_doub', FLAGS.crf_lambda_doub],
                       ['crf_lambda_cub', FLAGS.crf_lambda_cub],
                       ['crf_lambda_quad', FLAGS.crf_lambda_quad],
                       ['portion_threshold', FLAGS.portion_threshold],
-                      ['length_threshold', FLAGS.length_threshold]]
+                      ['dropout_keep_prob', FLAGS.dropout_keep_prob],
+                      ['dense_size', FLAGS.dense_size],
+                      ['num_filters', FLAGS.num_filters]]
 
         linesep('Parameter')
         for name, v in param_list:
