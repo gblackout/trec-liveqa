@@ -139,6 +139,7 @@ def main(FLAGS):
     # training summary
     train_loss_summary = tf.summary.scalar("train_loss", cnn.loss)
     l2_loss_summary = tf.summary.scalar("l2_loss", cnn.l2_loss)
+    score_summary = tf.summary.histogram("score_dist", cnn.scores)
     # train_acc_summary = tf.summary.scalar("train_accuracy", cnn.accuracy)
     # train_u_score_summary = tf.summary.scalar("unary_score", cnn.unary_score)
     # train_bi_score_summary = tf.summary.scalar("binary_score", cnn.binary_score)
@@ -146,6 +147,7 @@ def main(FLAGS):
 
     train_summary_op = tf.summary.merge([train_loss_summary,
                                          l2_loss_summary,
+                                         score_summary,
                                          # train_acc_summary,
                                          # train_u_score_summary,
                                          # train_bi_score_summary,

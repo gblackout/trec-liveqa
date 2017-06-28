@@ -123,7 +123,7 @@ class TextCNN_V2(object):
             for i in xrange(num_classes):
                 wiki_mat = tf.tile(wiki_features[i], [numOf_batch])
                 wiki_mat = tf.reshape(wiki_mat, [numOf_batch, num_filters_total])
-                feature_by_class.append(tf.reduce_sum(ehr_features * wiki_mat, axis=-1))
+                feature_by_class.append(tf.reduce_sum(ehr_features * wiki_mat, axis=-1, keep_dims=True))
             self.scores = tf.concat(feature_by_class, axis=-1)
 
         # # ================= EHR concat wiki then dense =================
