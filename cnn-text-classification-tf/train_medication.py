@@ -140,6 +140,7 @@ def main(FLAGS):
     train_loss_summary = tf.summary.scalar("train_loss", cnn.loss)
     l2_loss_summary = tf.summary.scalar("l2_loss", cnn.l2_loss)
     score_summary = tf.summary.histogram("score_dist", cnn.scores)
+    pred_summary = tf.summary.histogram("train_pred_dist", cnn.pred)
     # train_acc_summary = tf.summary.scalar("train_accuracy", cnn.accuracy)
     # train_u_score_summary = tf.summary.scalar("unary_score", cnn.unary_score)
     # train_bi_score_summary = tf.summary.scalar("binary_score", cnn.binary_score)
@@ -148,6 +149,7 @@ def main(FLAGS):
     train_summary_op = tf.summary.merge([train_loss_summary,
                                          l2_loss_summary,
                                          score_summary,
+                                         pred_summary
                                          # train_acc_summary,
                                          # train_u_score_summary,
                                          # train_bi_score_summary,
@@ -178,6 +180,9 @@ def main(FLAGS):
     test_fscore_summary = tf.summary.image('test_fscore', test_fscore_pd)
     test_dist_summary = tf.summary.image('test_distribution', test_dist_pd)
     test_curr_prf_summary = tf.summary.image('test_curr_prf', test_curr_prf_pd)
+
+    # TODO
+    test_pred_summary = tf.summary.histogram("test_pred_dist", cnn.pred)
 
     test_summary_op = tf.summary.merge([test_acc_summary,
                                         test_weighted_f_summary,
@@ -224,7 +229,10 @@ def main(FLAGS):
                          cnn.dropout_keep_prob: 1.0,
                          cnn.is_training: False}
 
-            loss, test_acc, batch_pred = sess.run([cnn.loss, cnn.accuracy, cnn.pred], feed_dict)
+            loss, test_acc, batch_pred, pred_sum = sess.run([cnn.loss, cnn.accuracy, cnn.pred, test_pred_summary], feed_dict)
+
+            # TODO
+            summary_writer.add_summary(test_pred_summary, cur_step)
 
             losses.append(loss)
             acc_ls.append(test_acc)
@@ -298,6 +306,7 @@ def main(FLAGS):
                         train_summary_op,
                         cnn.loss,
                         cnn.scores,
+                        cnn.pred,
                         # cnn.accuracy,
                         # cnn.unary_score,
                         # cnn.binary_score,
@@ -413,13 +422,13 @@ if __name__ == '__main__':
         FLAGS.num_epochs = 30
         FLAGS.num_checkpoints = 1
 
-        FLAGS.crf_lambda_doub = 10.0 ** np.random.randint(-2, 0)
-        FLAGS.crf_lambda_cub = 10.0 ** np.random.randint(-3, -1)
-        FLAGS.crf_lambda_quad = 10.0 ** np.random.randint(-3, -1)
-        FLAGS.portion_threshold = [0.8, 0.85, 0.9, 0.95][np.random.randint(0, 4)]
-        FLAGS.dropout_keep_prob = [0.2, 0.3, 0.4, 0.5, 0.6][np.random.randint(0, 5)]
-        FLAGS.dense_size = [32, 64, 128][np.random.randint(0, 3)]
-        FLAGS.num_filters = [32, 64, 128][np.random.randint(0, 3)]
+        # FLAGS.crf_lambda_doub = 10.0 ** np.random.randint(-2, 0)
+        # FLAGS.crf_lambda_cub = 10.0 ** np.random.randint(-3, -1)
+        # FLAGS.crf_lambda_quad = 10.0 ** np.random.randint(-3, -1)
+        # FLAGS.portion_threshold = [0.8, 0.85, 0.9, 0.95][np.random.randint(0, 4)]
+        # FLAGS.dropout_keep_prob = [0.2, 0.3, 0.4, 0.5, 0.6][np.random.randint(0, 5)]
+        # FLAGS.dense_size = [32, 64, 128][np.random.randint(0, 3)]
+        # FLAGS.num_filters = [32, 64, 128][np.random.randint(0, 3)]
 
         param_list = [['num_epochs', FLAGS.num_epochs],
                       ['crf_lambda_doub', FLAGS.crf_lambda_doub],
