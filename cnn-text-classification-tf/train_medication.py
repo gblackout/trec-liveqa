@@ -232,7 +232,7 @@ def main(FLAGS):
             loss, test_acc, batch_pred, pred_sum = sess.run([cnn.loss, cnn.accuracy, cnn.pred, test_pred_summary], feed_dict)
 
             # TODO
-            summary_writer.add_summary(test_pred_summary, cur_step)
+            summary_writer.add_summary(pred_sum, cur_step)
 
             losses.append(loss)
             acc_ls.append(test_acc)
@@ -304,9 +304,6 @@ def main(FLAGS):
         res = sess.run([train_op,
                         global_step,
                         train_summary_op,
-                        cnn.loss,
-                        cnn.scores,
-                        cnn.pred,
                         # cnn.accuracy,
                         # cnn.unary_score,
                         # cnn.binary_score,
