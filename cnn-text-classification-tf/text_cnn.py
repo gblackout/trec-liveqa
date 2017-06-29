@@ -301,7 +301,7 @@ class TextCNN_V2(object):
                 r = tf.while_loop(c, b, loop_vars=[iter_ind, preds],
                                   shape_invariants=[iter_ind.get_shape(), tf.TensorShape([None, num_classes])])
 
-                raw_pred = r[1][1:, :]
+                self.raw_pred = r[1][1:, :]
 
                 # TODO ad hoc
                 self.cnn_pred = tf.nn.sigmoid(self.scores, name='no_round_preds')
@@ -309,12 +309,12 @@ class TextCNN_V2(object):
                 self.cnn_correct_pred = tf.cast(tf.equal(self.cnn_pred, tf.round(self.input_y)), tf.float32)
                 self.cnn_accuracy = tf.reduce_mean(self.cnn_correct_pred)
             else:
-                raw_pred = tf.nn.sigmoid(self.scores, name='no_round_preds')
+                self.raw_pred = tf.nn.sigmoid(self.scores, name='no_round_preds')
                 # TODO ad hoc
                 self.cnn_pred = None
                 self.cnn_accuracy = None
 
-            self.pred = tf.round(raw_pred, name='prediction')
+            self.pred = tf.round(self.raw_pred, name='prediction')
             self.correct_pred = tf.cast(tf.equal(self.pred, tf.round(self.input_y)), tf.float32)
             self.accuracy = tf.reduce_mean(self.correct_pred)
 

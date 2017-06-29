@@ -140,7 +140,7 @@ def main(FLAGS):
     train_loss_summary = tf.summary.scalar("train_loss", cnn.loss)
     l2_loss_summary = tf.summary.scalar("l2_loss", cnn.l2_loss)
     score_summary = tf.summary.histogram("score_dist", cnn.scores)
-    pred_summary = tf.summary.histogram("train_pred_dist", cnn.pred)
+    pred_summary = tf.summary.histogram("train_pred_dist", cnn.raw_pred)
     # train_acc_summary = tf.summary.scalar("train_accuracy", cnn.accuracy)
     # train_u_score_summary = tf.summary.scalar("unary_score", cnn.unary_score)
     # train_bi_score_summary = tf.summary.scalar("binary_score", cnn.binary_score)
@@ -182,7 +182,7 @@ def main(FLAGS):
     test_curr_prf_summary = tf.summary.image('test_curr_prf', test_curr_prf_pd)
 
     # TODO
-    test_pred_summary = tf.summary.histogram("test_pred_dist", cnn.pred)
+    test_pred_summary = tf.summary.histogram("test_pred_dist", cnn.raw_pred)
 
     test_summary_op = tf.summary.merge([test_acc_summary,
                                         test_weighted_f_summary,
