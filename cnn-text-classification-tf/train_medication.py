@@ -140,7 +140,8 @@ def main(FLAGS):
     train_loss_summary = tf.summary.scalar("train_loss", cnn.loss)
     l2_loss_summary = tf.summary.scalar("l2_loss", cnn.l2_loss)
     score_summary = tf.summary.histogram("score_dist", cnn.scores)
-    pred_summary = tf.summary.histogram("train_pred_dist", cnn.raw_pred)
+    raw_pred_summary = tf.summary.histogram("train_raw_pred_dist", cnn.raw_pred)
+    pred_summary = tf.summary.histogram("train_pred_dist", cnn.pred)
     # train_acc_summary = tf.summary.scalar("train_accuracy", cnn.accuracy)
     # train_u_score_summary = tf.summary.scalar("unary_score", cnn.unary_score)
     # train_bi_score_summary = tf.summary.scalar("binary_score", cnn.binary_score)
@@ -149,7 +150,8 @@ def main(FLAGS):
     train_summary_op = tf.summary.merge([train_loss_summary,
                                          l2_loss_summary,
                                          score_summary,
-                                         pred_summary
+                                         pred_summary,
+                                         raw_pred_summary
                                          # train_acc_summary,
                                          # train_u_score_summary,
                                          # train_bi_score_summary,
@@ -182,7 +184,8 @@ def main(FLAGS):
     test_curr_prf_summary = tf.summary.image('test_curr_prf', test_curr_prf_pd)
 
     # TODO
-    test_pred_summary = tf.summary.histogram("test_pred_dist", cnn.raw_pred)
+    test_raw_pred_summary = tf.summary.histogram("test_raw_pred_dist", cnn.raw_pred)
+    test_pred_summary = tf.summary.histogram("test_pred_dist", cnn.pred)
 
     test_summary_op = tf.summary.merge([test_acc_summary,
                                         test_weighted_f_summary,
@@ -229,10 +232,11 @@ def main(FLAGS):
                          cnn.dropout_keep_prob: 1.0,
                          cnn.is_training: False}
 
-            loss, test_acc, batch_pred, pred_sum = sess.run([cnn.loss, cnn.accuracy, cnn.pred, test_pred_summary], feed_dict)
+            loss, test_acc, batch_pred, pred_sum, raw_pred_sum = sess.run([cnn.loss, cnn.accuracy, cnn.pred, test_pred_summary, test_raw_pred_summary], feed_dict)
 
             # TODO
             summary_writer.add_summary(pred_sum, cur_step)
+            summary_writer.add_summary(raw_pred_sum, cur_step)
 
             losses.append(loss)
             acc_ls.append(test_acc)
@@ -404,7 +408,9 @@ if __name__ == '__main__':
     tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
     tf.flags.DEFINE_boolean("log_device_placement", False, "Log placement of ops on devices")
     tf.flags.DEFINE_boolean("freez_w2v", True, "")
-    tf.flags.DEFINE_boolean("use_crf", True, "")
+
+    # TODO TODO
+    tf.flags.DEFINE_boolean("use_crf", False, "")
 
     FLAGS = tf.flags.FLAGS
     FLAGS._parse_flags()

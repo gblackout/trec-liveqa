@@ -55,6 +55,9 @@ class TextCNN_V2(object):
         self.cub_diag_mask = tf.constant(self.cub_diag_mask, name='cub_diag_mask')
         self.quad_diag_mask = tf.constant(self.quad_diag_mask, name='quad_diag_mask')
 
+        # small num prevent nan
+        epsilon = tf.constant(1e-8, dtype=tf.float32)
+
         self.l2_loss = None
 
         with tf.name_scope("concat_wiki"):
@@ -123,8 +126,8 @@ class TextCNN_V2(object):
             for i in xrange(num_classes):
                 wiki_mat = tf.tile(wiki_features[i], [numOf_batch])
                 wiki_mat = tf.reshape(wiki_mat, [numOf_batch, num_filters_total])
-                cosine_norm = tf.reduce_sum(tf.square(wiki_mat), axis=-1, keep_dims=True)
-                cosine_norm = cosine_norm * tf.reduce_sum(tf.square(ehr_features), axis=-1, keep_dims=True)
+                cosine_norm = tf.sqrt(tf.reduce_sum(tf.square(wiki_mat), axis=-1, keep_dims=True))
+                cosine_norm = epsilon + cosine_norm * tf.sqrt(tf.reduce_sum(tf.square(ehr_features), axis=-1, keep_dims=True)) + 1e-8
                 feature_by_class.append(tf.reduce_sum(ehr_features * wiki_mat / cosine_norm, axis=-1, keep_dims=True))
             self.scores = tf.concat(feature_by_class, axis=-1)
 
