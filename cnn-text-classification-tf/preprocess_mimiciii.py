@@ -86,7 +86,7 @@ class DataLoader:
         X = [' '.join(e) for e in X]
 
         import pprint, sys
-        pprint.pprint(X)
+        print X[:10]
 
 
         # TODO need tune min_freq

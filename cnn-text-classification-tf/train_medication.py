@@ -358,7 +358,7 @@ if __name__ == '__main__':
     tf.flags.DEFINE_string("load_model_folder", './runs_sigmoid_1512/1494012307/checkpoints', "load model file")
 
     tf.flags.DEFINE_integer("multilabel", 1, "softmax or sigmoid")
-    tf.flags.DEFINE_integer("portion_threshold", 0.85, "max number of words allowed in a document")
+    tf.flags.DEFINE_integer("portion_threshold", 0.99, "max number of words allowed in a document")
     tf.flags.DEFINE_integer("length_threshold", None, "max number of words allowed in a document")
 
     # Model Hyperparameters
@@ -377,7 +377,7 @@ if __name__ == '__main__':
     tf.flags.DEFINE_float("crf_lambda_quad", 0.01, "")
 
     # Training parameters
-    tf.flags.DEFINE_integer("batch_size", 64, "Batch Size (default: 64)")
+    tf.flags.DEFINE_integer("batch_size", 32, "Batch Size (default: 64)")
     tf.flags.DEFINE_integer("num_epochs", 500, "Number of training epochs (default: 200)")
     # negative int -> every <evaluate_freq> epochs; positive int -> every <evaluate_freq> steps
     tf.flags.DEFINE_integer("evaluate_freq", -1, "Evaluate model every <evaluate_freq> steps/epoch for pos/neg input")
