@@ -11,17 +11,16 @@ import re
 class DataLoader:
     def __init__(self, data_partition, batch_size):
         """
-        
+
         input
         -----
         data_partition:
             float between (0,1) indicating the ratio of training data in whole dataset
-            
+
         """
         self.X = None
         self.Y = None
-        self.admX = None
-        self.wikiX = None
+
         self.data_partition = data_partition
         self.partition_ind = None
         self.vocab_processor = None
@@ -34,42 +33,25 @@ class DataLoader:
 
         # reg for cleaning filtering out meaningless tokens
         reg1 = re.compile(r'\d')           # remove tokens that are just/contains digits
-        reg2 = re.compile(r'^\w{1,3}$')     # remove tokens that are too short (len<=3)
+        reg2 = re.compile(r'^\w$')     # remove tokens that are too short (len==1)
         self.tk_regs = [lambda x:reg1.search(x) is not None,
                         lambda x:reg2.match(x) is not None]
 
-    def load_from_text(self, data_dir, labelfile_path, stpwd_path, crop_threshold, wiki_dir, shuffle=True):
+    def load_from_text(self, labelfile_path, stpwd_path, crop_threshold, shuffle=True):
         """
         input
         -----
-        crop_threshold: 
+        crop_threshold:
             (portion threshold, length threshold), specify how to crop doc. portion threshold is used whenever it's not
             None
         """
         assert os.path.isfile(labelfile_path), 'index file not found at %s' % labelfile_path
-        assert os.path.isdir(data_dir), 'data dir not found at %s' % data_dir
         assert os.path.isfile(stpwd_path), 'stopwords file not found at %s' % stpwd_path
-        assert os.path.isdir(wiki_dir), 'wiki dir not found at %s' % wiki_dir
-
 
         # get all filenames and their labels
-        file_labels = []
-        with open(labelfile_path) as f:
-            for line in f:
-
-                # TODO ad hoc solution
-                if ';' in line:
-                    parts = line.split(';')
-                    adm_vec = map(int, parts[1].strip().split())
-                    mask_vec = map(int, parts[2].strip().split())
-                else:
-                    parts = line.split()
-                    mask_vec = map(int, parts[1:])
-                    adm_vec = None
-
-                filepath = parts[0].strip()
-
-                file_labels.append([joinpath(data_dir, filepath), mask_vec, adm_vec])
+        import pickle
+        # [[string, class_mask], ...]
+        file_labels = pickle.load(open(labelfile_path))
 
         # get set of stpwd
         stpwd = set()
@@ -79,55 +61,43 @@ class DataLoader:
         if shuffle:
             random.shuffle(file_labels)
 
-        # visit all json files, extract X and Y
-        X, Y, admX, doc_lens = [], [], [], []
-        for i, (filepath, label_vec, adm_vec) in enumerate(file_labels):
-            assert os.path.exists(filepath), 'file not found %s' % filepath
-
-            nc = NoteContainer(filepath, mode=1)
-            text_one = nc.fields_asText()
-
-            # stpwd removal
-            tokens = learn.preprocessing.tokenizer([text_one]).next()
-            filtered_tokens = [tk for tk in tokens if sum([reg(tk) for reg in self.tk_regs]) == 0]
-            filtered_tokens = [tk for tk in filtered_tokens if tk not in stpwd]
-            doc_lens.append(len(filtered_tokens))
-
-            X.append(filtered_tokens)
-
-            Y.append(label_vec)
-            admX.append(adm_vec)
-
-        X, max_doc_len = crop_doc(X, doc_lens, *crop_threshold)
-        X = [' '.join(e) for e in X]
-
-        self.vocab_processor = learn.preprocessing.VocabularyProcessor(max_doc_len, min_frequency=3)
-
-        # get all wiki docs
         punc_reg = re.compile(r'[^a-z0-9 ]', flags=re.IGNORECASE)
         space_reg = re.compile(r'\s+')
-        wikiX = []
-        for i in xrange(len(Y[0])):
-            with open(joinpath(wiki_dir, str(i)+'.txt')) as f:
-                text_one = f.read()
+
+        # visit all json files, extract X and Y
+        X, Y, doc_lens = [], [], []
+        for i, (text_one, label_vec) in enumerate(file_labels):
 
             text_one = punc_reg.sub(' ', text_one)
             text_one = space_reg.sub(' ', text_one)
             text_one = text_one.strip().lower()
 
-            tokens = self.vocab_processor._tokenizer([text_one]).next()
+            # stpwd removal
+            tokens = learn.preprocessing.tokenizer([text_one]).next()
             filtered_tokens = [tk for tk in tokens if sum([reg(tk) for reg in self.tk_regs]) == 0]
-            filtered_tokens = [tk for tk in filtered_tokens if tk not in stpwd]
-            wikiX.append(' '.join(filtered_tokens[:max_doc_len]))
+            # filtered_tokens = [tk for tk in filtered_tokens if tk not in stpwd]
+            doc_lens.append(len(filtered_tokens))
+
+            X.append(filtered_tokens)
+
+            Y.append(label_vec)
+
+        X, max_doc_len = crop_doc(X, doc_lens, *crop_threshold)
+        X = [' '.join(e) for e in X]
+
+        import pprint, sys
+        pprint.pprint(X)
+
+
+        # TODO need tune min_freq
+        self.vocab_processor = learn.preprocessing.VocabularyProcessor(max_doc_len, min_frequency=2)
 
         self.vocab_processor.fit(X)
-        self.vocab_processor.fit(wikiX)
         self.X = np.array(list(self.vocab_processor.transform(X)))
-        self.wikiX = np.array(list(self.vocab_processor.transform(wikiX)))
-
         self.Y = np.array(Y, dtype=np.float32)
-        if admX[0] is not None:
-            self.admX = np.array(admX, dtype=np.float32)
+
+        # TODO debug
+        pprint.pprint(self.vocab_processor.vocabulary_._freq[:1000])
 
         self.vocab_size = len(self.vocab_processor.vocabulary_)
         self.max_doc_len = max_doc_len
@@ -136,6 +106,9 @@ class DataLoader:
 
         assert self.vocab_size > 100
         print("Vocabulary Size       : {:d}".format(self.vocab_size))
+
+        # TODO debug
+        sys.exit(0)
 
     def load_from_mat(self, mat_dir):
         assert os.path.isdir(mat_dir)
@@ -165,13 +138,12 @@ class DataLoader:
                 end_index = bias + min((batch_num + 1) * bsize, bias + data_size)
                 is_epochComplete = batch_num + 1 == num_batches
 
-                x_batch, y_batch, adm_batch = self.get_chunk(start_index, end_index)
+                x_batch, y_batch = self.get_chunk(start_index, end_index)
 
-                yield x_batch, y_batch, adm_batch, batch_num, is_epochComplete
+                yield x_batch, y_batch, batch_num, is_epochComplete
 
     def get_chunk(self, start_index, end_index):
-        return self.X[start_index:end_index], self.Y[start_index:end_index], \
-               self.admX[start_index:end_index] if self.admX is not None else None
+        return self.X[start_index:end_index], self.Y[start_index:end_index]
 
     @staticmethod
     def compute_numOf_batch(total_size, batch_size):

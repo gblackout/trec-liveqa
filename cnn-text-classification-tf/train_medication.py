@@ -8,7 +8,6 @@ from utils.visualization import prf_summary, output_summary, curr_prf
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import tensorflow as tf, numpy as np
-from sklearn.metrics import jaccard_similarity_score
 import preprocess_mimiciii
 from text_cnn import TextCNN_V2
 
@@ -72,8 +71,8 @@ def main(FLAGS):
     data_loader = preprocess_mimiciii.DataLoader(0.9, FLAGS.batch_size)
 
     # TODO ad hoc
-    data_loader.load_from_text(FLAGS.dataset_dir, FLAGS.file_labels_fn, FLAGS.stpwd_path,
-                               [FLAGS.portion_threshold, FLAGS.length_threshold], FLAGS.wiki_dir)
+    data_loader.load_from_text(FLAGS.file_labels_fn, FLAGS.stpwd_path,
+                               [FLAGS.portion_threshold, FLAGS.length_threshold])
 
     # try:
     #     data_loader.load_from_mat(FLAGS.matdata_dir)
@@ -106,13 +105,6 @@ def main(FLAGS):
 
     global_step = tf.Variable(0, name="global_step", trainable=False)
 
-    # cnn = TextCNN(sequence_length=data_loader.max_doc_len, num_classes=data_loader.num_class,
-    #               vocab_size=data_loader.vocab_size,
-    #               embedding_size=FLAGS.embedding_dim,
-    #               filter_sizes=map(int, FLAGS.filter_sizes.split(",")),
-    #               num_filters=FLAGS.num_filters, multilabel=FLAGS.multilabel,
-    #               pooling_filter_size=3, l2_reg_lambda=FLAGS.l2_reg_lambda)
-
     cnn = TextCNN_V2(sequence_length=data_loader.max_doc_len,
                      num_classes=data_loader.num_class,
                      vocab_size=data_loader.vocab_size,
@@ -124,14 +116,9 @@ def main(FLAGS):
                      crf_lambda_doub=FLAGS.crf_lambda_doub,
                      crf_lambda_cub=FLAGS.crf_lambda_cub,
                      crf_lambda_quad=FLAGS.crf_lambda_quad,
-                     use_crf=FLAGS.use_crf,
-                     init_w2v=None,
-                     freez_w2v=FLAGS.freez_w2v)
+                     use_crf=FLAGS.use_crf)
 
-    # define Training procedure
-    # decayed_learning_rate = tf.train.exponential_decay(FLAGS.learning_rate, global_step, FLAGS.decay_every_steps,
-    #                                                    FLAGS.learning_rate_decay,
-    #                                                    staircase=True)  # decay around every 10 epoches
+
     optimizer = tf.train.AdamOptimizer(FLAGS.learning_rate)
     grads_and_vars = optimizer.compute_gradients(cnn.loss)
     train_op = optimizer.apply_gradients(grads_and_vars, global_step=global_step)
@@ -223,12 +210,9 @@ def main(FLAGS):
 
         losses, acc_ls = [], []
         pbar = ProgressBar(maxval=num_batches).start()
-        for x_batch, y_batch, adm_batch, batch_num, is_epochComplete in d_loader.batcher(train=False,
-                                                                                         batch_size=FLAGS.batch_size):
+        for x_batch, y_batch, batch_num, is_epochComplete in d_loader.batcher(train=False, batch_size=FLAGS.batch_size):
             feed_dict = {cnn.input_x: x_batch,
                          cnn.input_y: y_batch,
-                         cnn.input_adm: adm_batch,
-                         cnn.input_wiki: d_loader.wikiX,
                          cnn.dropout_keep_prob: 1.0,
                          cnn.is_training: False}
 
@@ -296,12 +280,10 @@ def main(FLAGS):
     linesep('train epoch %i' % epoch_cnt)
     pbar = ProgressBar(maxval=num_batches_per_epoch).start()
 
-    for x_batch, y_batch, adm_batch, batch_num, is_epochComplete in data_loader.batcher():
+    for x_batch, y_batch, batch_num, is_epochComplete in data_loader.batcher():
 
         feed_dict = {cnn.input_x: x_batch,
                      cnn.input_y: y_batch,
-                     cnn.input_adm: adm_batch,
-                     cnn.input_wiki: data_loader.wikiX,
                      cnn.dropout_keep_prob: FLAGS.dropout_keep_prob,
                      cnn.is_training: True}
 
@@ -365,11 +347,9 @@ if __name__ == '__main__':
     # paths
 
     # TODO ad hoc
-    tf.flags.DEFINE_string("file_labels_fn", '../hyper_label_index_withadm', "")
+    tf.flags.DEFINE_string("file_labels_fn", '../type_data', "")
 
-    tf.flags.DEFINE_string("wiki_dir", '../wiki_hyper', "")
     tf.flags.DEFINE_string("stpwd_path", '../stpwd', "")
-    tf.flags.DEFINE_string("dataset_dir", '../uni_containers_tmp', "")
     tf.flags.DEFINE_string("matdata_dir", '../hyper_mat_data', "")
     tf.flags.DEFINE_string("w2v_path", '../full_table.npy', "")
     tf.flags.DEFINE_string("output_dir", 'out', "main output directory")
@@ -407,10 +387,7 @@ if __name__ == '__main__':
     # Misc Parameters
     tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
     tf.flags.DEFINE_boolean("log_device_placement", False, "Log placement of ops on devices")
-    tf.flags.DEFINE_boolean("freez_w2v", True, "")
-
-    # TODO TODO
-    tf.flags.DEFINE_boolean("use_crf", False, "")
+    tf.flags.DEFINE_boolean("use_crf", True, "")
 
     FLAGS = tf.flags.FLAGS
     FLAGS._parse_flags()
@@ -448,5 +425,6 @@ if __name__ == '__main__':
 
         # start training
         out_dir, best_weighted_f1 = main(FLAGS)
+
         with open('performance_log', 'a') as f:
             print >> f, '%s\t%.4f\t%s' % (out_dir, best_weighted_f1, str(param_list))

@@ -215,11 +215,174 @@ def cov():
     print np.max(stats), np.min(stats)
 
 
+
+def parse_nih_data():
+    import pickle, collections, pprint
+    res = pickle.load(open('../pickerResult'))['requests']
+
+    # cnter = collections.Counter()
+    # num_ls = []
+
+    data = []
+
+    for req_ls in res:
+        d = [req_ls['text']]
+        q_type = set()
+        for req in req_ls['questions']:
+            subq_ls = req['subquestions']
+
+            for subq in subq_ls:
+                q_type.add(subq['category'])
+
+        d.append([t for t in q_type])
+        data.append(d)
+
+    pickle.dump(data, open('nih_data', 'w'))
+    pprint.pprint(data)
+
+    # pprint.pprint(cnter)
+    # print np.mean(num_ls), np.std(num_ls)
+
+
+
+
+def parse_trec_data():
+    import pickle, collections, pprint
+
+    res = pickle.load(open('../nih_data'))
+
+    pprint.pprint(res)
+
+    cnter = collections.Counter()
+    for q in res:
+        cnter.update(q[1])
+
+    pprint.pprint(cnter)
+
+    # res = pickle.load(open('../trec_data'))
+    #
+    # pprint.pprint(res)
+    #
+    # cnter = collections.Counter()
+    # for q in res:
+    #     cnter.update(q[1])
+    #
+    # pprint.pprint(cnter)
+
+    # print sum([cnter[k] for k in cnter])
+
+trec_synonyms = {'drug_info':['dosage', 'ingredient', 'tapering', 'storage and disposal', 'indication', 'usage'],
+                'organization':['resources', 'organization'],
+                'drug_interaction':['contraindication', 'side effects', 'interaction'], # connection to two drugs/ one drug one disease
+                'disease_prevent':['prevention', 'susceptibility'], # prevent, what to do to protect, who/how old is likely to get this, how common
+                'disease_intertaction':['association'], # connection to two dieases
+                'disease_symptom':['prognosis', 'inheritance', 'symptom', 'complication'] # how like in future, chance to survive, how bad it can get
+                }
+
+nih_synonyms = {'treatment':['Management'],
+                'disease_symptom':['OtherEffect', 'Manifestation', 'Complication'],
+                'organization':['PersonOrg'],
+                'information':['Other', 'NotDisease', 'Anatomy']
+                }
+
+def collapse_types():
+    import pickle, collections, pprint
+
+    res = pickle.load(open('../trec_data'))
+
+    cnter = collections.Counter()
+
+    for i in xrange(len(res)):
+        type_ls = res[i][1]
+        collapsed_type = set()
+        for t in type_ls:
+            if t == 'genetic changes':
+                collapsed_type.add('information')
+                continue
+
+            found_flag = False
+            for k, v in trec_synonyms.iteritems():
+                for syn in v:
+                    if syn == t:
+                        collapsed_type.add(k)
+                        found_flag = True
+                        break
+                if found_flag:
+                    break
+
+            if found_flag:
+                continue
+
+            collapsed_type.add(t)
+
+        res[i][1] = [e for e in collapsed_type]
+
+        cnter.update(collapsed_type)
+
+    total_res = res
+
+    res = pickle.load(open('../nih_data'))
+
+    for i in xrange(len(res)):
+        type_ls = res[i][1]
+        collapsed_type = set()
+        for t in type_ls:
+            found_flag = False
+            for k, v in nih_synonyms.iteritems():
+                for syn in v:
+                    if syn == t:
+                        collapsed_type.add(k)
+                        found_flag = True
+                        break
+                if found_flag:
+                    break
+
+            if found_flag:
+                continue
+
+            collapsed_type.add(t.lower())
+
+        res[i][1] = [e for e in collapsed_type]
+
+        cnter.update(collapsed_type)
+
+    total_res += res
+
+    name2ind = dict()
+    ind = 0
+
+    with open('type_freq', 'w') as f:
+        for k,v in cnter.most_common():
+            name2ind[k] = ind
+            ind += 1
+            print >> f, k, v
+
+
+
+    final_out = []
+
+    for q in total_res:
+        type_mask = [0]*len(name2ind)
+        for t in q[1]:
+            type_mask[name2ind[t]] = 1
+        final_out.append([q[0], type_mask])
+
+    pprint.pprint(final_out)
+
+    with open('type_data', 'w') as f:
+        pickle.dump(final_out, f)
+
+    pprint.pprint(name2ind)
+
+
+
+
 if __name__ == '__main__':
     # get_med_freq('uni_containers_tmp/', 'diabetes_med_list', 'diabetes_med')
-    cov()
+    # cov()
 
-
+    # parse_trec_data()
+    collapse_types()
 
 
 
