@@ -327,10 +327,10 @@ def main(FLAGS):
                 if update_best:
                     saver.save(sess, joinpath(checkpoint_dir, 'best_model.ckpt'))
 
-            # save model
-            if epoch_cnt % FLAGS.checkpoint_freq == 0:
-                linesep('save model at epoch %i' % epoch_cnt)
-                saver.save(sess, joinpath(checkpoint_dir, 'model.ckpt'), global_step=cur_step)
+            # # save model
+            # if epoch_cnt % FLAGS.checkpoint_freq == 0:
+            #     linesep('save model at epoch %i' % epoch_cnt)
+            #     saver.save(sess, joinpath(checkpoint_dir, 'model.ckpt'), global_step=cur_step)
 
             epoch_cnt += 1
             if epoch_cnt >= FLAGS.num_epochs:
@@ -341,15 +341,27 @@ def main(FLAGS):
 
     return out_dir, best_weighted_f1
 
+
+def test(input_filepath, output_filepath):
+
+    # TODO the way of reading may change
+    with open(input_filepath) as f:
+        question = f.read().strip()
+
+    with tf.Session() as sess:
+        pass
+
+
+
 if __name__ == '__main__':
     # ==================== Parameters ==============================
 
     # paths
 
     # TODO ad hoc
-    tf.flags.DEFINE_string("file_labels_fn", '../type_data', "")
+    tf.flags.DEFINE_string("file_labels_fn", 'type_data', "")
 
-    tf.flags.DEFINE_string("stpwd_path", '../stpwd', "")
+    tf.flags.DEFINE_string("stpwd_path", 'stpwd', "")
     tf.flags.DEFINE_string("matdata_dir", '../hyper_mat_data', "")
     tf.flags.DEFINE_string("w2v_path", '../full_table.npy', "")
     tf.flags.DEFINE_string("output_dir", 'out', "main output directory")

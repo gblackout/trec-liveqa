@@ -75,7 +75,7 @@ class DataLoader:
             # stpwd removal
             tokens = learn.preprocessing.tokenizer([text_one]).next()
             filtered_tokens = [tk for tk in tokens if sum([reg(tk) for reg in self.tk_regs]) == 0]
-            # filtered_tokens = [tk for tk in filtered_tokens if tk not in stpwd]
+            filtered_tokens = [tk for tk in filtered_tokens if tk not in stpwd]
             doc_lens.append(len(filtered_tokens))
 
             X.append(filtered_tokens)
@@ -85,19 +85,11 @@ class DataLoader:
         X, max_doc_len = crop_doc(X, doc_lens, *crop_threshold)
         X = [' '.join(e) for e in X]
 
-        import pprint, sys
-        print X[:10]
-
-
-        # TODO need tune min_freq
         self.vocab_processor = learn.preprocessing.VocabularyProcessor(max_doc_len, min_frequency=2)
 
         self.vocab_processor.fit(X)
         self.X = np.array(list(self.vocab_processor.transform(X)))
         self.Y = np.array(Y, dtype=np.float32)
-
-        # TODO debug
-        pprint.pprint(self.vocab_processor.vocabulary_._freq[:1000])
 
         self.vocab_size = len(self.vocab_processor.vocabulary_)
         self.max_doc_len = max_doc_len
@@ -106,9 +98,6 @@ class DataLoader:
 
         assert self.vocab_size > 100
         print("Vocabulary Size       : {:d}".format(self.vocab_size))
-
-        # TODO debug
-        sys.exit(0)
 
     def load_from_mat(self, mat_dir):
         assert os.path.isdir(mat_dir)
