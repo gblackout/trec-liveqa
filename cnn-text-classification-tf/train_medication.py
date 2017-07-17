@@ -177,11 +177,7 @@ def main(FLAGS):
     test_curr_prf_summary = tf.summary.image('test_curr_prf', test_curr_prf_pd)
     test_loss_summary = tf.summary.scalar("test_loss", test_loss_pd)
 
-    # TODO
-    test_raw_pred_summary = tf.summary.histogram("test_raw_pred_dist", cnn.raw_pred)
-    test_pred_summary = tf.summary.histogram("test_pred_dist", cnn.pred)
-
-    test_summary_op = tf.summary.merge([test_acc_summary,
+    test_summary_op = tf.summary.merge([#test_acc_summary,
                                         test_weighted_f_summary,
                                         test_loss_summary,
                                         test_precision_summary,
@@ -223,11 +219,7 @@ def main(FLAGS):
                          cnn.dropout_keep_prob: 1.0,
                          cnn.is_training: False}
 
-            loss, test_acc, batch_pred, pred_sum, raw_pred_sum = sess.run([cnn.loss, cnn.accuracy, cnn.pred, test_pred_summary, test_raw_pred_summary], feed_dict)
-
-            # TODO
-            summary_writer.add_summary(pred_sum, cur_step)
-            summary_writer.add_summary(raw_pred_sum, cur_step)
+            loss, test_acc, batch_pred = sess.run([cnn.loss, cnn.accuracy, cnn.pred], feed_dict)
 
             losses.append(loss)
             acc_ls.append(test_acc)
@@ -260,7 +252,7 @@ def main(FLAGS):
             updatebest = False
 
         summaries = sess.run(test_summary_op,
-                             {test_mean_acc_pd: np.mean(acc_ls),
+                             {#test_mean_acc_pd: np.mean(acc_ls),
                               test_weighted_f_pd: weighted_f,
                               test_loss_pd: np.mean(losses),
                               test_precision_pd: np.expand_dims(prf_images[0], axis=0),
