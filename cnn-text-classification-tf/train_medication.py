@@ -153,6 +153,7 @@ def main(FLAGS):
     # test summary
     test_mean_acc_pd = tf.placeholder(tf.float32, shape=None, name="test_mean_acc")
     test_weighted_f_pd = tf.placeholder(tf.float32, shape=None, name="test_weighted_f")
+    test_loss_pd = tf.placeholder(tf.float32, shape=None, name="test_loss")
     test_cnn_weighted_f_pd = tf.placeholder(tf.float32, shape=None, name="test_cnn_weighted_f")
     # images
     test_precision_pd = tf.placeholder(tf.uint8, shape=None, name='test_precision')
@@ -174,6 +175,7 @@ def main(FLAGS):
     test_fscore_summary = tf.summary.image('test_fscore', test_fscore_pd)
     test_dist_summary = tf.summary.image('test_distribution', test_dist_pd)
     test_curr_prf_summary = tf.summary.image('test_curr_prf', test_curr_prf_pd)
+    test_loss_summary = tf.summary.scalar("test_loss", test_loss_pd)
 
     # TODO
     test_raw_pred_summary = tf.summary.histogram("test_raw_pred_dist", cnn.raw_pred)
@@ -181,7 +183,7 @@ def main(FLAGS):
 
     test_summary_op = tf.summary.merge([test_acc_summary,
                                         test_weighted_f_summary,
-                                        # test_cnn_weighted_f_summary,
+                                        test_loss_summary,
                                         test_precision_summary,
                                         test_recall_summary,
                                         test_fscore_summary,
@@ -260,6 +262,7 @@ def main(FLAGS):
         summaries = sess.run(test_summary_op,
                              {test_mean_acc_pd: np.mean(acc_ls),
                               test_weighted_f_pd: weighted_f,
+                              test_loss_pd: np.mean(losses),
                               test_precision_pd: np.expand_dims(prf_images[0], axis=0),
                               test_recall_pd: np.expand_dims(prf_images[1], axis=0),
                               test_fscore_pd: np.expand_dims(prf_images[2], axis=0),
@@ -275,7 +278,7 @@ def main(FLAGS):
                                        test_curr_prf_pd: np.expand_dims(curr_prf_image, axis=0)})
             summary_writer.add_summary(best_summaires, cur_step)
 
-        return bestf1, prf_hist, dist_hist, updatebest
+        return bestf1, prf_hist, dist_hist, (updatebest or weighted_f > 0.6)
 
     linesep('initial model evaluate')
     best_weighted_f1, prf_hist, dist_hist, update_best = evaluate(best_weighted_f1, data_loader, prf_hist, dist_hist)
@@ -334,8 +337,9 @@ def main(FLAGS):
 
             # save model
             if not eval_bystep and (epoch_cnt % (-FLAGS.evaluate_freq) == 0):
-                linesep('save model at epoch %i' % epoch_cnt)
-                saver.save(sess, joinpath(checkpoint_dir, 'model.ckpt'), global_step=cur_step)
+                if update_best:
+                    linesep('save model at epoch %i' % epoch_cnt)
+                    saver.save(sess, joinpath(checkpoint_dir, 'model.ckpt'), global_step=cur_step)
 
             epoch_cnt += 1
             if epoch_cnt >= FLAGS.num_epochs:
@@ -456,9 +460,17 @@ if __name__ == '__main__':
     FLAGS = tf.flags.FLAGS
     FLAGS._parse_flags()
 
-    test('single', 'single_out', 'type_model', FLAGS)
-    import sys
-    sys.exit(0)
+    from optparse import OptionParser
+    parser = OptionParser()
+    parser.add_option("--input", dest="INPUT", type="string", help="Number of samples to run")
+    parser.add_option("--output", dest="OUTPUT", type="int", help="Top number of hypotheses to store")
+
+    (options, args) = parser.parse_args()
+
+    # test(options.INPUT, options.OUTPUT, 'type_model', FLAGS)
+    # test('single', 'single_out', 'type_model', FLAGS)
+    # import sys
+    # sys.exit(0)
 
     # linesep('Parameter')
     # for attr, value in sorted(FLAGS.__flags.items()):
@@ -468,7 +480,7 @@ if __name__ == '__main__':
     while True:
 
         FLAGS.num_epochs = 100
-        FLAGS.num_checkpoints = 5
+        FLAGS.num_checkpoints = 50
 
         # FLAGS.crf_lambda_doub = 10.0 ** np.random.randint(-2, 0)
         # FLAGS.crf_lambda_cub = 10.0 ** np.random.randint(-3, -1)
