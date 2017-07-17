@@ -70,9 +70,16 @@ def main(FLAGS):
     linesep('Loading data')
     data_loader = preprocess_mimiciii.DataLoader(0.9, FLAGS.batch_size)
 
+    # Output directory for models and summaries
+    out_name = 'multilabel_' + ('CRF_' if FLAGS.use_crf else '') + str(12)
+    out_dir = get_output_folder(FLAGS.output_dir, out_name)
+
+    matdir = joinpath(out_dir, 'mat')
+    makedir(matdir)
+
     # TODO ad hoc
     data_loader.load_from_text(FLAGS.file_labels_fn, FLAGS.stpwd_path,
-                               [FLAGS.portion_threshold, FLAGS.length_threshold])
+                               [FLAGS.portion_threshold, FLAGS.length_threshold], matdir)
 
     # try:
     #     data_loader.load_from_mat(FLAGS.matdata_dir)
@@ -87,9 +94,6 @@ def main(FLAGS):
 
     num_batches_per_epoch = data_loader.compute_numOf_batch(data_loader.partition_ind, FLAGS.batch_size)
 
-    # Output directory for models and summaries
-    out_name = 'multilabel_' + ('CRF_' if FLAGS.use_crf else '') + str(data_loader.num_class)
-    out_dir = get_output_folder(FLAGS.output_dir, out_name)
     log_path = joinpath(out_dir, FLAGS.log_path)
     summary_dir = joinpath(out_dir, 'summary')
     checkpoint_dir = joinpath(out_dir, "checkpoint")
@@ -342,14 +346,17 @@ def main(FLAGS):
     return out_dir, best_weighted_f1
 
 
-def test(input_filepath, output_filepath):
+def test(input_filepath, output_filepath, model_path):
 
     # TODO the way of reading may change
     with open(input_filepath) as f:
         question = f.read().strip()
 
     with tf.Session() as sess:
-        pass
+        new_saver = tf.train.import_meta_graph(joinpath(model_path, 'best_model.ckpt.meta'))
+        new_saver.restore(sess, model_path)
+
+
 
 
 
@@ -411,7 +418,7 @@ if __name__ == '__main__':
     # fine-tune hyper-parameters
     while True:
 
-        FLAGS.num_epochs = 30
+        FLAGS.num_epochs = 100
         FLAGS.num_checkpoints = 1
 
         # FLAGS.crf_lambda_doub = 10.0 ** np.random.randint(-2, 0)

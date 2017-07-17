@@ -37,7 +37,7 @@ class DataLoader:
         self.tk_regs = [lambda x:reg1.search(x) is not None,
                         lambda x:reg2.match(x) is not None]
 
-    def load_from_text(self, labelfile_path, stpwd_path, crop_threshold, shuffle=True):
+    def load_from_text(self, labelfile_path, stpwd_path, crop_threshold, mat_dir, shuffle=True):
         """
         input
         -----
@@ -98,6 +98,42 @@ class DataLoader:
 
         assert self.vocab_size > 100
         print("Vocabulary Size       : {:d}".format(self.vocab_size))
+
+        self.vocab_processor.save(joinpath(mat_dir, 'vocab'))
+
+    @staticmethod
+    def parse_single(text_one, mat_dir, stpwd_path):
+
+        max_doc_len = 134 # TODO hard code
+
+        vocab_processor = learn.preprocessing.VocabularyProcessor.restore(joinpath(mat_dir, 'vocab'))
+
+        # reg for cleaning filtering out meaningless tokens
+        reg1 = re.compile(r'\d')  # remove tokens that are just/contains digits
+        reg2 = re.compile(r'^\w$')  # remove tokens that are too short (len==1)
+        tk_regs = [lambda x: reg1.search(x) is not None,
+                        lambda x: reg2.match(x) is not None]
+        punc_reg = re.compile(r'[^a-z0-9 ]', flags=re.IGNORECASE)
+        space_reg = re.compile(r'\s+')
+        # get set of stpwd
+        stpwd = set()
+        with open(stpwd_path) as f:
+            stpwd.update([line.strip() for line in f])
+
+        text_one = punc_reg.sub(' ', text_one)
+        text_one = space_reg.sub(' ', text_one)
+        text_one = text_one.strip().lower()
+
+        # stpwd removal
+        tokens = learn.preprocessing.tokenizer([text_one]).next()
+        filtered_tokens = [tk for tk in tokens if sum([reg(tk) for reg in tk_regs]) == 0]
+        filtered_tokens = [tk for tk in filtered_tokens if tk not in stpwd]
+
+        X = np.array(list(vocab_processor.transform(filtered_tokens[:max_doc_len])))
+
+        return X
+
+
 
     def load_from_mat(self, mat_dir):
         assert os.path.isdir(mat_dir)
