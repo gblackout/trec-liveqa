@@ -131,7 +131,7 @@ class DataLoader:
 
         X = np.array(list(vocab_processor.transform(filtered_tokens[:max_doc_len])))
 
-        return X
+        return X, len(vocab_processor.vocabulary_)
 
 
 

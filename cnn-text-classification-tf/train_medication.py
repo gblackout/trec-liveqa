@@ -73,6 +73,7 @@ def main(FLAGS):
     # Output directory for models and summaries
     out_name = 'multilabel_' + ('CRF_' if FLAGS.use_crf else '') + str(12)
     out_dir = get_output_folder(FLAGS.output_dir, out_name)
+    makedir(out_dir)
 
     matdir = joinpath(out_dir, 'mat')
     makedir(matdir)
@@ -98,7 +99,7 @@ def main(FLAGS):
     summary_dir = joinpath(out_dir, 'summary')
     checkpoint_dir = joinpath(out_dir, "checkpoint")
 
-    makedir(out_dir)
+
     makedir(summary_dir)
     makedir(checkpoint_dir)
 
@@ -346,18 +347,50 @@ def main(FLAGS):
     return out_dir, best_weighted_f1
 
 
-def test(input_filepath, output_filepath, model_path):
+def test(input_filepath, output_filepath, model_path, FLAGS):
 
     # TODO the way of reading may change
     with open(input_filepath) as f:
         question = f.read().strip()
 
+    X, vocab_size = preprocess_mimiciii.DataLoader.parse_single(question, joinpath(model_path, 'mat'), 'stpwd')
+
     with tf.Session() as sess:
-        new_saver = tf.train.import_meta_graph(joinpath(model_path, 'best_model.ckpt.meta'))
-        new_saver.restore(sess, model_path)
 
+        cnn = TextCNN_V2(sequence_length=134,
+                         num_classes=12,
+                         vocab_size=vocab_size,
+                         embedding_size=FLAGS.embedding_dim,
+                         filter_sizes=map(int, FLAGS.filter_sizes.split(',')),
+                         num_filters=FLAGS.num_filters,
+                         dense_size=FLAGS.dense_size,
+                         l2_coef=FLAGS.l2_reg_lambda,
+                         crf_lambda_doub=FLAGS.crf_lambda_doub,
+                         crf_lambda_cub=FLAGS.crf_lambda_cub,
+                         crf_lambda_quad=FLAGS.crf_lambda_quad,
+                         use_crf=FLAGS.use_crf)
 
+        # new_saver = tf.train.import_meta_graph(joinpath(model_path, 'checkpoint/best_model.ckpt.meta'))
+        new_saver = tf.train.Saver()
+        new_saver.restore(sess, joinpath(model_path, 'checkpoint/best_model.ckpt'))
 
+        # graph = tf.get_default_graph()
+        # input_x = graph.get_tensor_by_name("input_x:0")
+        # input_y = graph.get_tensor_by_name("input_y:0")
+        # pred = graph.get_tensor_by_name("accuracy/prediction:0")
+        # is_training = graph.get_tensor_by_name("is_training:0")
+        # dropout_keep_prob = graph.get_tensor_by_name("dropout_keep_prob:0")
+
+        feed_dict = {cnn.input_x: X,
+                     cnn.input_y: np.array([[0.0]*12]), # TODO hard coded
+                     cnn.dropout_keep_prob: 1.0,
+                     cnn.is_training: False}
+
+        batch_pred = sess.run(cnn.pred, feed_dict)
+
+        with open(output_filepath, 'w') as f:
+            for e in batch_pred.astype(int):
+                print >> f, e,
 
 
 if __name__ == '__main__':
@@ -410,6 +443,10 @@ if __name__ == '__main__':
 
     FLAGS = tf.flags.FLAGS
     FLAGS._parse_flags()
+
+    test('single', 'single_out', 'out/multilabel_CRF_12-run38', FLAGS)
+    import sys
+    sys.exit(0)
 
     # linesep('Parameter')
     # for attr, value in sorted(FLAGS.__flags.items()):
