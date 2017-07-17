@@ -196,7 +196,7 @@ class TextCNN_V2(object):
                 iter_ind = tf.constant(0)
                 preds = tf.constant([[-1.0] * num_classes])
 
-                c = lambda iter_ind, preds: iter_ind < tf.shape(self.input_y)[0]
+                c = lambda iter_ind, preds: iter_ind < tf.shape(self.input_x)[0]
                 b = lambda iter_ind, preds: [iter_ind + 1,
                                              tf.concat([preds, tf.expand_dims(self.all_y[inds[iter_ind], :], axis=0)],
                                                        axis=0)]

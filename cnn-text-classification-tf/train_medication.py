@@ -329,13 +329,13 @@ def main(FLAGS):
                 best_weighted_f1, prf_hist, dist_hist, update_best = \
                     evaluate(best_weighted_f1, data_loader, prf_hist, dist_hist)
 
-                if update_best:
-                    saver.save(sess, joinpath(checkpoint_dir, 'best_model.ckpt'))
+                # if update_best:
+                #     saver.save(sess, joinpath(checkpoint_dir, 'best_model.ckpt'))
 
-            # # save model
-            # if epoch_cnt % FLAGS.checkpoint_freq == 0:
-            #     linesep('save model at epoch %i' % epoch_cnt)
-            #     saver.save(sess, joinpath(checkpoint_dir, 'model.ckpt'), global_step=cur_step)
+            # save model
+            if not eval_bystep and (epoch_cnt % (-FLAGS.evaluate_freq) == 0):
+                linesep('save model at epoch %i' % epoch_cnt)
+                saver.save(sess, joinpath(checkpoint_dir, 'model.ckpt'), global_step=cur_step)
 
             epoch_cnt += 1
             if epoch_cnt >= FLAGS.num_epochs:
@@ -353,7 +353,17 @@ def test(input_filepath, output_filepath, model_path, FLAGS):
     with open(input_filepath) as f:
         question = f.read().strip()
 
-    X, vocab_size = preprocess_mimiciii.DataLoader.parse_single(question, joinpath(model_path, 'mat'), 'stpwd')
+    _, vocab_size = preprocess_mimiciii.DataLoader.parse_single(question, joinpath(model_path, 'mat'), 'stpwd')
+
+    import pickle
+    with open('type_data') as k:
+        X, Y = [], []
+        for i, (text_one, label_vec) in enumerate(pickle.load(k)):
+            single_x, _ = preprocess_mimiciii.DataLoader.parse_single(text_one, joinpath(model_path, 'mat'), 'stpwd')
+            X.append(single_x)
+            Y.append(label_vec)
+        X = np.concatenate(X, axis=0)
+        Y = np.array(Y, dtype=np.float32)
 
     with tf.Session() as sess:
 
@@ -382,15 +392,17 @@ def test(input_filepath, output_filepath, model_path, FLAGS):
         # dropout_keep_prob = graph.get_tensor_by_name("dropout_keep_prob:0")
 
         feed_dict = {cnn.input_x: X,
-                     cnn.input_y: np.array([[0.0]*12]), # TODO hard coded
                      cnn.dropout_keep_prob: 1.0,
                      cnn.is_training: False}
 
         batch_pred = sess.run(cnn.pred, feed_dict)
 
-        with open(output_filepath, 'w') as f:
-            for e in batch_pred.astype(int):
-                print >> f, e,
+        prf_ls = prf(Y, batch_pred)
+        print prf_ls[2]
+
+        # with open(output_filepath, 'w') as f:
+        #     for e in batch_pred.astype(int):
+        #         print >> f, e,
 
 
 if __name__ == '__main__':
@@ -444,9 +456,9 @@ if __name__ == '__main__':
     FLAGS = tf.flags.FLAGS
     FLAGS._parse_flags()
 
-    test('single', 'single_out', 'out/multilabel_CRF_12-run38', FLAGS)
-    import sys
-    sys.exit(0)
+    # test('single', 'single_out', 'out/multilabel_CRF_12-run38', FLAGS)
+    # import sys
+    # sys.exit(0)
 
     # linesep('Parameter')
     # for attr, value in sorted(FLAGS.__flags.items()):
@@ -456,7 +468,7 @@ if __name__ == '__main__':
     while True:
 
         FLAGS.num_epochs = 100
-        FLAGS.num_checkpoints = 1
+        FLAGS.num_checkpoints = 5
 
         # FLAGS.crf_lambda_doub = 10.0 ** np.random.randint(-2, 0)
         # FLAGS.crf_lambda_cub = 10.0 ** np.random.randint(-3, -1)

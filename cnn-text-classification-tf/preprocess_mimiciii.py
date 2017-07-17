@@ -129,7 +129,7 @@ class DataLoader:
         filtered_tokens = [tk for tk in tokens if sum([reg(tk) for reg in tk_regs]) == 0]
         filtered_tokens = [tk for tk in filtered_tokens if tk not in stpwd]
 
-        X = np.array(list(vocab_processor.transform(filtered_tokens[:max_doc_len])))
+        X = np.array(list(vocab_processor.transform([' '.join(filtered_tokens[:max_doc_len])])))
 
         return X, len(vocab_processor.vocabulary_)
 
