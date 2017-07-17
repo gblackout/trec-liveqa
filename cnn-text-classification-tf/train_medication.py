@@ -253,9 +253,9 @@ def main(FLAGS):
         # whether this model performs best? if so save it
         if weighted_f > bestf1:
             bestf1 = weighted_f
-            update_best = True
+            updatebest = True
         else:
-            update_best = False
+            updatebest = False
 
         summaries = sess.run(test_summary_op,
                              {test_mean_acc_pd: np.mean(acc_ls),
@@ -269,13 +269,13 @@ def main(FLAGS):
         summary_writer.add_summary(summaries, cur_step)
 
         # updated best summaries
-        if update_best:
+        if updatebest:
             best_summaires = sess.run(best_test_summary_op,
                                       {test_weighted_f_pd: weighted_f,
                                        test_curr_prf_pd: np.expand_dims(curr_prf_image, axis=0)})
             summary_writer.add_summary(best_summaires, cur_step)
 
-        return bestf1, prf_hist, dist_hist, update_best
+        return bestf1, prf_hist, dist_hist, updatebest
 
     linesep('initial model evaluate')
     best_weighted_f1, prf_hist, dist_hist, update_best = evaluate(best_weighted_f1, data_loader, prf_hist, dist_hist)
@@ -456,9 +456,9 @@ if __name__ == '__main__':
     FLAGS = tf.flags.FLAGS
     FLAGS._parse_flags()
 
-    # test('single', 'single_out', 'out/multilabel_CRF_12-run38', FLAGS)
-    # import sys
-    # sys.exit(0)
+    test('single', 'single_out', 'type_model', FLAGS)
+    import sys
+    sys.exit(0)
 
     # linesep('Parameter')
     # for attr, value in sorted(FLAGS.__flags.items()):
