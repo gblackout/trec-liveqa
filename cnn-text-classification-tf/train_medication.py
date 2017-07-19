@@ -376,7 +376,7 @@ def test(input_filepath, output_filepath, model_path, FLAGS):
     #         single_x, rule_mask, _ = preprocess_mimiciii.DataLoader.parse_single(text_one, joinpath(model_path, 'mat'), 'stpwd')
     #         X.append(single_x)
     #         Y.append(label_vec)
-    #         rule_mat.append(np.array(rule_mask))
+    #         rule_mat.append(np.array([rule_mask]))
     #     X = np.concatenate(X, axis=0)
     #     Y = np.array(Y, dtype=np.float32)
     #     rule_mat = np.concatenate(rule_mat, axis=0)
@@ -429,7 +429,7 @@ def test(input_filepath, output_filepath, model_path, FLAGS):
         # print '!!!!', cnt
 
         with open(output_filepath, 'w') as f:
-            for e in batch_pred_rule.astype(int):
+            for e in batch_pred_rule[0].astype(int):
                 print >> f, e,
 
 
