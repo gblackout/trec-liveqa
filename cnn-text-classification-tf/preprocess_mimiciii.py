@@ -129,7 +129,7 @@ class DataLoader:
         filtered_tokens = [tk for tk in tokens if sum([reg(tk) for reg in tk_regs]) == 0]
         filtered_tokens = [tk for tk in filtered_tokens if tk not in stpwd]
 
-        rule_mask = np.array([0] * 12, dtype=np.int32)
+        rule_mask = np.array([0] * 10, dtype=np.int32)
         if sum([1 for e in ['treatment', 'treatments'] if e in filtered_tokens]) > 0:
             rule_mask[0] = 1
         if sum([1 for e in ['symptoms', 'symptom'] if e in filtered_tokens]) > 0:

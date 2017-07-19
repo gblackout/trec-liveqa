@@ -71,7 +71,7 @@ def main(FLAGS):
     data_loader = preprocess_mimiciii.DataLoader(0.9, FLAGS.batch_size)
 
     # Output directory for models and summaries
-    out_name = 'multilabel_' + ('CRF_' if FLAGS.use_crf else '') + str(12)
+    out_name = 'multilabel_' + ('CRF_' if FLAGS.use_crf else '') + str(10)
     out_dir = get_output_folder(FLAGS.output_dir, out_name)
     makedir(out_dir)
 
@@ -367,6 +367,8 @@ def test(input_filepath, output_filepath, model_path, FLAGS):
 
     X1, rule_mask1, vocab_size = preprocess_mimiciii.DataLoader.parse_single(question, joinpath(model_path, 'mat'), 'stpwd')
 
+    # X, rule_mat = bar(model_path)
+
     # import pickle
     # with open('type_data') as k:
     #     X, Y, rule_mat = [], [], []
@@ -396,7 +398,7 @@ def test(input_filepath, output_filepath, model_path, FLAGS):
 
         # new_saver = tf.train.import_meta_graph(joinpath(model_path, 'checkpoint/best_model.ckpt.meta'))
         new_saver = tf.train.Saver()
-        new_saver.restore(sess, joinpath(model_path, 'checkpoint/best_model.ckpt'))
+        new_saver.restore(sess, joinpath(model_path, 'checkpoint/model.ckpt-1785'))
 
         # graph = tf.get_default_graph()
         # input_x = graph.get_tensor_by_name("input_x:0")
@@ -405,15 +407,26 @@ def test(input_filepath, output_filepath, model_path, FLAGS):
         # is_training = graph.get_tensor_by_name("is_training:0")
         # dropout_keep_prob = graph.get_tensor_by_name("dropout_keep_prob:0")
 
-        feed_dict = {cnn.input_x: X1,
+        feed_dict = {
+                     cnn.input_x: X1,
+                     # cnn.input_x: X,
                      cnn.dropout_keep_prob: 1.0,
                      cnn.is_training: False}
 
         batch_pred = sess.run(cnn.pred, feed_dict)
         batch_pred_rule = np.clip(batch_pred + np.array([rule_mask1]), 0, 1)
+        # batch_pred_rule = np.clip(batch_pred + rule_mat, 0, 1)
 
         # prf_ls = prf(Y, batch_pred)
         # print prf_ls[2]
+
+        # cnt = 0
+        # for i in xrange(batch_pred.shape[0]):
+        #     e = batch_pred[i]
+        #     if e.sum() == 0:
+        #         print X[i]
+        #         cnt += 1
+        # print '!!!!', cnt
 
         with open(output_filepath, 'w') as f:
             for e in batch_pred_rule.astype(int):
@@ -459,7 +472,7 @@ if __name__ == '__main__':
     tf.flags.DEFINE_integer("batch_size", 32, "Batch Size (default: 64)")
     tf.flags.DEFINE_integer("num_epochs", 500, "Number of training epochs (default: 200)")
     # negative int -> every <evaluate_freq> epochs; positive int -> every <evaluate_freq> steps
-    tf.flags.DEFINE_integer("evaluate_freq", -1, "Evaluate model every <evaluate_freq> steps/epoch for pos/neg input")
+    tf.flags.DEFINE_integer("evaluate_freq", -5, "Evaluate model every <evaluate_freq> steps/epoch for pos/neg input")
     tf.flags.DEFINE_integer("checkpoint_freq", 1, "Save model every <checkpoint_freq> epochs")
     tf.flags.DEFINE_integer("num_checkpoints", 100, "Number of checkpoints to store")
 
@@ -479,7 +492,7 @@ if __name__ == '__main__':
     (options, args) = parser.parse_args()
 
     # test(options.INPUT, options.OUTPUT, 'type_model', FLAGS)
-    # test('single', 'single_out', 'type_model', FLAGS)
+    # test('single', 'single_out', 'out/multilabel_CRF_10-run', FLAGS)
     # import sys
     # sys.exit(0)
 
@@ -490,8 +503,8 @@ if __name__ == '__main__':
     # fine-tune hyper-parameters
     while True:
 
-        FLAGS.num_epochs = 100
-        FLAGS.num_checkpoints = 100
+        FLAGS.num_epochs = 300
+        FLAGS.num_checkpoints = 50
 
         # FLAGS.crf_lambda_doub = 10.0 ** np.random.randint(-2, 0)
         # FLAGS.crf_lambda_cub = 10.0 ** np.random.randint(-3, -1)
