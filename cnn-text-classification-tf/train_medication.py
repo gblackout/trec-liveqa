@@ -270,7 +270,7 @@ def main(FLAGS):
                                        test_curr_prf_pd: np.expand_dims(curr_prf_image, axis=0)})
             summary_writer.add_summary(best_summaires, cur_step)
 
-        return bestf1, prf_hist, dist_hist, (updatebest or weighted_f > 0.6)
+        return bestf1, prf_hist, dist_hist, updatebest
 
     linesep('initial model evaluate')
     best_weighted_f1, prf_hist, dist_hist, update_best = evaluate(best_weighted_f1, data_loader, prf_hist, dist_hist)
@@ -329,9 +329,8 @@ def main(FLAGS):
 
             # save model
             if not eval_bystep and (epoch_cnt % (-FLAGS.evaluate_freq) == 0):
-                if update_best:
-                    linesep('save model at epoch %i' % epoch_cnt)
-                    saver.save(sess, joinpath(checkpoint_dir, 'model.ckpt'), global_step=cur_step)
+                linesep('save model at epoch %i' % epoch_cnt)
+                saver.save(sess, joinpath(checkpoint_dir, 'model.ckpt'), global_step=cur_step)
 
             epoch_cnt += 1
             if epoch_cnt >= FLAGS.num_epochs:
@@ -343,28 +342,47 @@ def main(FLAGS):
     return out_dir, best_weighted_f1
 
 
+def bar(model_path):
+    import json
+    with open('filteredQuestion.json') as k:
+        jn = json.load(k)
+        X, rm = [], []
+
+        for i, entry in enumerate(jn):
+            text_one = entry['title'] + '. ' + entry['content']
+            single_x, rv, _ = preprocess_mimiciii.DataLoader.parse_single(text_one, joinpath(model_path, 'mat'), 'stpwd')
+            X.append(single_x)
+            rm.append(np.array([rv]))
+        X = np.concatenate(X, axis=0)
+
+    return X, np.concatenate(rm, axis=0)
+
+
 def test(input_filepath, output_filepath, model_path, FLAGS):
 
     # TODO the way of reading may change
     with open(input_filepath) as f:
-        question = f.read().strip()
+        question = f.read().decode(encoding='utf-8', errors='ignore')
+        question = question.strip()
 
-    _, vocab_size = preprocess_mimiciii.DataLoader.parse_single(question, joinpath(model_path, 'mat'), 'stpwd')
+    X1, rule_mask1, vocab_size = preprocess_mimiciii.DataLoader.parse_single(question, joinpath(model_path, 'mat'), 'stpwd')
 
-    import pickle
-    with open('type_data') as k:
-        X, Y = [], []
-        for i, (text_one, label_vec) in enumerate(pickle.load(k)):
-            single_x, _ = preprocess_mimiciii.DataLoader.parse_single(text_one, joinpath(model_path, 'mat'), 'stpwd')
-            X.append(single_x)
-            Y.append(label_vec)
-        X = np.concatenate(X, axis=0)
-        Y = np.array(Y, dtype=np.float32)
+    # import pickle
+    # with open('type_data') as k:
+    #     X, Y, rule_mat = [], [], []
+    #     for i, (text_one, label_vec) in enumerate(pickle.load(k)):
+    #         single_x, rule_mask, _ = preprocess_mimiciii.DataLoader.parse_single(text_one, joinpath(model_path, 'mat'), 'stpwd')
+    #         X.append(single_x)
+    #         Y.append(label_vec)
+    #         rule_mat.append(np.array(rule_mask))
+    #     X = np.concatenate(X, axis=0)
+    #     Y = np.array(Y, dtype=np.float32)
+    #     rule_mat = np.concatenate(rule_mat, axis=0)
 
     with tf.Session() as sess:
 
         cnn = TextCNN_V2(sequence_length=134,
-                         num_classes=12,
+                         num_classes=10,
                          vocab_size=vocab_size,
                          embedding_size=FLAGS.embedding_dim,
                          filter_sizes=map(int, FLAGS.filter_sizes.split(',')),
@@ -387,18 +405,19 @@ def test(input_filepath, output_filepath, model_path, FLAGS):
         # is_training = graph.get_tensor_by_name("is_training:0")
         # dropout_keep_prob = graph.get_tensor_by_name("dropout_keep_prob:0")
 
-        feed_dict = {cnn.input_x: X,
+        feed_dict = {cnn.input_x: X1,
                      cnn.dropout_keep_prob: 1.0,
                      cnn.is_training: False}
 
         batch_pred = sess.run(cnn.pred, feed_dict)
+        batch_pred_rule = np.clip(batch_pred + np.array([rule_mask1]), 0, 1)
 
-        prf_ls = prf(Y, batch_pred)
-        print prf_ls[2]
+        # prf_ls = prf(Y, batch_pred)
+        # print prf_ls[2]
 
-        # with open(output_filepath, 'w') as f:
-        #     for e in batch_pred.astype(int):
-        #         print >> f, e,
+        with open(output_filepath, 'w') as f:
+            for e in batch_pred_rule.astype(int):
+                print >> f, e,
 
 
 if __name__ == '__main__':
@@ -455,7 +474,7 @@ if __name__ == '__main__':
     from optparse import OptionParser
     parser = OptionParser()
     parser.add_option("--input", dest="INPUT", type="string", help="Number of samples to run")
-    parser.add_option("--output", dest="OUTPUT", type="int", help="Top number of hypotheses to store")
+    parser.add_option("--output", dest="OUTPUT", type="string", help="Top number of hypotheses to store")
 
     (options, args) = parser.parse_args()
 
@@ -472,7 +491,7 @@ if __name__ == '__main__':
     while True:
 
         FLAGS.num_epochs = 100
-        FLAGS.num_checkpoints = 50
+        FLAGS.num_checkpoints = 100
 
         # FLAGS.crf_lambda_doub = 10.0 ** np.random.randint(-2, 0)
         # FLAGS.crf_lambda_cub = 10.0 ** np.random.randint(-3, -1)

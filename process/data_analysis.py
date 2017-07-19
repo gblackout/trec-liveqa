@@ -255,7 +255,7 @@ def parse_trec_data():
 
     cnter = collections.Counter()
     for q in res:
-        cnter.update(q[1])
+        cnter.update([e.lower() for e in q[1]])
 
     pprint.pprint(cnter)
 
@@ -268,22 +268,60 @@ def parse_trec_data():
     #     cnter.update(q[1])
     #
     # pprint.pprint(cnter)
-
+    #
     # print sum([cnter[k] for k in cnter])
 
-trec_synonyms = {'drug_info':['dosage', 'ingredient', 'tapering', 'storage and disposal', 'indication', 'usage'],
+trec_synonyms = {
+                'information':['information', 'association', 'inheritance'],
+                'treatment': ['treatment', 'prevention'],
+                'cause':['cause'],
+                'diagnosis':['diagnosis'],
+                'prognosis':['prognosis'],
+                'drug_info':['dosage', 'ingredient', 'tapering', 'storage and disposal', 'indication', 'usage'],
                 'organization':['resources', 'organization'],
                 'drug_interaction':['contraindication', 'side effects', 'interaction'], # connection to two drugs/ one drug one disease
-                'disease_prevent':['prevention', 'susceptibility'], # prevent, what to do to protect, who/how old is likely to get this, how common
-                'disease_intertaction':['association'], # connection to two dieases
-                'disease_symptom':['prognosis', 'inheritance', 'symptom', 'complication'] # how like in future, chance to survive, how bad it can get
+                'susceptibility':['susceptibility'], # prevent, what to do to protect, who/how old is likely to get this, how common
+                'symptom':['symptom', 'complication'] # how like in future, chance to survive, how bad it can get
                 }
 
-nih_synonyms = {'treatment':['Management'],
-                'disease_symptom':['OtherEffect', 'Manifestation', 'Complication'],
-                'organization':['PersonOrg'],
-                'information':['Other', 'NotDisease', 'Anatomy']
+nih_synonyms = {
+                'information':['information', 'other', 'notdisease', 'anatomy'],
+                'treatment':['management'],
+                'cause':['cause'],
+                'susceptibility':['susceptibility'],
+                'prognosis':['prognosis'],
+                'diagnosis':['diagnosis'],
+                'symptom':['othereffect', 'manifestation', 'complication'],
+                'organization':['personorg'],
                 }
+
+
+workup = {'How can I learn about research involving primary ciliary dyskinesia and Kartagener syndrome?':['information'],
+          'How is amyloidosis diagnosed in those with familial Mediterranean fever? How is the effectiveness of colchicine monitored?':['diagnosis', 'management'],
+          'I am researching the link between Greig cephalopolysyndactyly syndrome, hydrocephalus, and seizures. I am curious about the reason for the hydrocephalus: is it a blockage issue or a slow draining issue?':['othereffect'],
+          "I'd like to learn more about megalocytic interstitial nephritis with malakoplakia.":['information'],
+'If a woman has a XXY karyotype, does this mean that she has Klinefelter syndrome?':['information'],
+'I had preeclampsia and HELLP syndrome with what I believe to be my first and only pregnancy. I believe my sister had eclampsia with her second pregnancy. I also believe that our mother may have had this condition but little was known at the time of my birth. Both my sister and I now have a daughter. Given our history, does this mean that they are at a higher risk for having these problems? My daughter is just learning of these things and is concerned that she will have the same complications as we did, so I told her I would look into it for her.':['susceptibility'],
+'I have a loved one with hereditary leiomyomatosis and renal cell cancer who has a lot of skin leiomyomas. Does this mean he is at a particularly increased risk for developing renal cell carcinoma?':['complication'],
+'I have a patient who may have Williams syndrome. His mother was previously diagnosed with familial Mediterrranean fever, but she has facial features consistent with Williams syndrome. Do Williams syndrome and familial Mediterranean fever share any signs or symptoms?':['manifestation'],
+'I have been recently diagnosed with antisynthetase syndrome, acute interstitial lung disease, muscle weakness, skin involvement, scleroderma, and dermatomyositis. Could you please provide me with information on antisynthetase syndrome? I am also interested in learning about prognosis, treatment, and clinical trials.':['information', 'prognosis', 'management'],
+'My grandson has Joubert syndrome, autism, and ADHD. Is autism related to Joubert syndrome?':['othereffect'],
+'My husband was diagnosed with multiple sclerosis (MS) in 1999, and now with a second opinion he was diagnosed with possible primary lateral sclerosis (PLS). How does MS differ from PLS? How are MS and PLS diagnosed?':['other', 'diagnosis'],
+'My one year-old daughter was admitted in the hospital because of breathing problems. Her ph level was 6.7 and she was unconscious for eight days. During those days there were many problems. Her doctor said that she had SCOT deficiency OR carnitine palmitoyl transferase 1 deficiency. Now she is normal. Will this happen again?':['prognosis'],
+'My sister and I have neurofibromas and dermal eccrine cylindromas. Do you have ANY information on these tumors or know where I can get more information?':['information'],
+'My sister was recently diagnosed with Horner syndrome. Last year I was diagnosed with cluster headaches. Are these two condition related?':['othereffect'],
+'My son was born with a vascular lesion in the right groin area. A biopsy of the lesion suggested it is likely to be a non-involuting congenital hemangioma (NICH), but there is a possibility it is a kaposiform hemangioendothelioma. I would like to know why it has not been possible to determine which of the two it actually is and why surgical excision will be necessary in the future.':['diagnosis', 'management'],
+'What are the chances of having alpha 1-antitrypsin deficiency and panniculitis?':['susceptibility'],
+'What can you tell me about acute intermittent porphyria and Chester porphyria?':['information'],
+'What is the difference between a epithelioid sarcoma and a lipoma or liposarcoma?':['diagnosis'],
+'What is the difference between cryoglobulinemia and cold agglutinin disease?':['diagnosis'],
+'What is the difference between Roberts syndrome and tetra-amelia syndrome? How can my condition be diagnosed?':['diagnosis'],
+"What is the difference between uterine adenosarcoma and uterine adenocarcinoma? Or are they the same thing? I'm trying to research this diagnosis and keep seeing these phrases used interchangeably.":['diagnosis', 'information'],
+"What percentage of patients with Wolff Parkinson White syndrome have Ebstein's anomaly?":['susceptibility'],
+'When I was about 8-years-old, I was hospitalized due to encephalitis lethargica. I was extremely ill and it took me a long time to recover. Last May, I was diagnosed with a benign meningioma. Could my childhood illness be related to the development of my tumor? Are there any documented cases of meningioma in other survivors of encephalitis lethargica?':['othereffect'],
+          }
+
+
 
 def collapse_types():
     import pickle, collections, pprint
@@ -295,6 +333,8 @@ def collapse_types():
     for i in xrange(len(res)):
         type_ls = res[i][1]
         collapsed_type = set()
+
+        assert len(type_ls) > 0
         for t in type_ls:
             if t == 'genetic changes':
                 collapsed_type.add('information')
@@ -310,10 +350,7 @@ def collapse_types():
                 if found_flag:
                     break
 
-            if found_flag:
-                continue
-
-            collapsed_type.add(t)
+            assert found_flag, res[i]
 
         res[i][1] = [e for e in collapsed_type]
 
@@ -324,8 +361,13 @@ def collapse_types():
     res = pickle.load(open('../nih_data'))
 
     for i in xrange(len(res)):
-        type_ls = res[i][1]
+        type_ls = [e.lower() for e in res[i][1]]
         collapsed_type = set()
+
+        if res[i][0] in workup:
+            type_ls = workup[res[i][0]]
+
+        assert len(type_ls) > 0
         for t in type_ls:
             found_flag = False
             for k, v in nih_synonyms.iteritems():
@@ -337,10 +379,7 @@ def collapse_types():
                 if found_flag:
                     break
 
-            if found_flag:
-                continue
-
-            collapsed_type.add(t.lower())
+            assert found_flag, res[i]
 
         res[i][1] = [e for e in collapsed_type]
 
@@ -363,8 +402,10 @@ def collapse_types():
 
     for q in total_res:
         type_mask = [0]*len(name2ind)
+
         for t in q[1]:
             type_mask[name2ind[t]] = 1
+
         final_out.append([q[0], type_mask])
 
     pprint.pprint(final_out)

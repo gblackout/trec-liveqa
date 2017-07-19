@@ -129,9 +129,23 @@ class DataLoader:
         filtered_tokens = [tk for tk in tokens if sum([reg(tk) for reg in tk_regs]) == 0]
         filtered_tokens = [tk for tk in filtered_tokens if tk not in stpwd]
 
+        rule_mask = np.array([0] * 12, dtype=np.int32)
+        if sum([1 for e in ['treatment', 'treatments'] if e in filtered_tokens]) > 0:
+            rule_mask[0] = 1
+        if sum([1 for e in ['symptoms', 'symptom'] if e in filtered_tokens]) > 0:
+            rule_mask[2] = 1
+        if sum([1 for e in ['how bad'] if e in ' '.join(filtered_tokens)]) > 0:
+            rule_mask[4] = 1
+        if sum([1 for e in ['diagnosis'] if e in filtered_tokens]) > 0:
+            rule_mask[5] = 1
+        if sum([1 for e in ['cause'] if e in filtered_tokens]) > 0:
+            rule_mask[6] = 1
+        if sum([1 for e in ['side effect', 'side effects'] if e in ' '.join(filtered_tokens)]) > 0:
+            rule_mask[9] = 1
+
         X = np.array(list(vocab_processor.transform([' '.join(filtered_tokens[:max_doc_len])])))
 
-        return X, len(vocab_processor.vocabulary_)
+        return X, rule_mask, len(vocab_processor.vocabulary_)
 
 
 
