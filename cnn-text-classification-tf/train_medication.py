@@ -491,10 +491,10 @@ if __name__ == '__main__':
 
     (options, args) = parser.parse_args()
 
-    # test(options.INPUT, options.OUTPUT, 'type_model', FLAGS)
-    # test('single', 'single_out', 'out/multilabel_CRF_10-run', FLAGS)
-    # import sys
-    # sys.exit(0)
+    test(options.INPUT, options.OUTPUT, 'out/multilabel_CRF_10-run1', FLAGS)
+    # test('single', 'single_out', 'out/multilabel_CRF_10-run1', FLAGS)
+    import sys
+    sys.exit(0)
 
     # linesep('Parameter')
     # for attr, value in sorted(FLAGS.__flags.items()):
