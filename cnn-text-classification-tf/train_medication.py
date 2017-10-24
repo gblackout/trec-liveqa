@@ -82,17 +82,6 @@ def main(FLAGS):
     data_loader.load_from_text(FLAGS.file_labels_fn, FLAGS.stpwd_path,
                                [FLAGS.portion_threshold, FLAGS.length_threshold], matdir)
 
-    # try:
-    #     data_loader.load_from_mat(FLAGS.matdata_dir)
-    #     print '======>found mat data in %s' % FLAGS.matdata_dir
-    # except:
-    #     print '======>mat data not found in %s loading from container in ' % FLAGS.matdata_dir
-    #     data_loader.load_from_text(FLAGS.dataset_dir, FLAGS.file_labels_fn, FLAGS.stpwd_path,
-    #                                max_doc_len=FLAGS.max_doc_len)
-    #     print '======>saving mat data to %s' %FLAGS.matdata_dir
-    #     data_loader.save_mat(FLAGS.matdata_dir)
-
-
     num_batches_per_epoch = data_loader.compute_numOf_batch(data_loader.partition_ind, FLAGS.batch_size)
 
     log_path = joinpath(out_dir, FLAGS.log_path)
@@ -134,20 +123,12 @@ def main(FLAGS):
     score_summary = tf.summary.histogram("score_dist", cnn.scores)
     raw_pred_summary = tf.summary.histogram("train_raw_pred_dist", cnn.raw_pred)
     pred_summary = tf.summary.histogram("train_pred_dist", cnn.pred)
-    # train_acc_summary = tf.summary.scalar("train_accuracy", cnn.accuracy)
-    # train_u_score_summary = tf.summary.scalar("unary_score", cnn.unary_score)
-    # train_bi_score_summary = tf.summary.scalar("binary_score", cnn.binary_score)
-    # train_cnn_acc_summary = tf.summary.scalar("train_cnn_accuracy", cnn.cnn_accuracy)
 
     train_summary_op = tf.summary.merge([train_loss_summary,
                                          l2_loss_summary,
                                          score_summary,
                                          pred_summary,
                                          raw_pred_summary
-                                         # train_acc_summary,
-                                         # train_u_score_summary,
-                                         # train_bi_score_summary,
-                                         # train_cnn_acc_summary
                                          ])
 
     # test summary
@@ -290,10 +271,6 @@ def main(FLAGS):
         res = sess.run([train_op,
                         global_step,
                         train_summary_op,
-                        # cnn.accuracy,
-                        # cnn.unary_score,
-                        # cnn.binary_score,
-                        # cnn.cnn_accuracy
                         ], feed_dict)
 
         cur_step, summaries = res[1:3]
@@ -367,20 +344,6 @@ def test(input_filepath, output_filepath, model_path, FLAGS):
 
     X1, rule_mask1, vocab_size = preprocess_mimiciii.DataLoader.parse_single(question, joinpath(model_path, 'mat'), 'stpwd')
 
-    # X, rule_mat = bar(model_path)
-
-    # import pickle
-    # with open('type_data') as k:
-    #     X, Y, rule_mat = [], [], []
-    #     for i, (text_one, label_vec) in enumerate(pickle.load(k)):
-    #         single_x, rule_mask, _ = preprocess_mimiciii.DataLoader.parse_single(text_one, joinpath(model_path, 'mat'), 'stpwd')
-    #         X.append(single_x)
-    #         Y.append(label_vec)
-    #         rule_mat.append(np.array([rule_mask]))
-    #     X = np.concatenate(X, axis=0)
-    #     Y = np.array(Y, dtype=np.float32)
-    #     rule_mat = np.concatenate(rule_mat, axis=0)
-
     with tf.Session() as sess:
 
         cnn = TextCNN_V2(sequence_length=134,
@@ -400,13 +363,6 @@ def test(input_filepath, output_filepath, model_path, FLAGS):
         new_saver = tf.train.Saver()
         new_saver.restore(sess, joinpath(model_path, 'checkpoint/model.ckpt-1785'))
 
-        # graph = tf.get_default_graph()
-        # input_x = graph.get_tensor_by_name("input_x:0")
-        # input_y = graph.get_tensor_by_name("input_y:0")
-        # pred = graph.get_tensor_by_name("accuracy/prediction:0")
-        # is_training = graph.get_tensor_by_name("is_training:0")
-        # dropout_keep_prob = graph.get_tensor_by_name("dropout_keep_prob:0")
-
         feed_dict = {
                      cnn.input_x: X1,
                      # cnn.input_x: X,
@@ -415,18 +371,6 @@ def test(input_filepath, output_filepath, model_path, FLAGS):
 
         batch_pred = sess.run(cnn.pred, feed_dict)
         batch_pred_rule = np.clip(batch_pred + np.array([rule_mask1]), 0, 1)
-        # batch_pred_rule = np.clip(batch_pred + rule_mat, 0, 1)
-
-        # prf_ls = prf(Y, batch_pred)
-        # print prf_ls[2]
-
-        # cnt = 0
-        # for i in xrange(batch_pred.shape[0]):
-        #     e = batch_pred[i]
-        #     if e.sum() == 0:
-        #         print X[i]
-        #         cnt += 1
-        # print '!!!!', cnt
 
         with open(output_filepath, 'w') as f:
             for e in batch_pred_rule[0].astype(int):
@@ -492,27 +436,14 @@ if __name__ == '__main__':
     (options, args) = parser.parse_args()
 
     test(options.INPUT, options.OUTPUT, 'out/multilabel_CRF_12-run1', FLAGS)
-    # test('single', 'single_out', 'out/multilabel_CRF_12-run1', FLAGS)
     import sys
     sys.exit(0)
-
-    # linesep('Parameter')
-    # for attr, value in sorted(FLAGS.__flags.items()):
-    #     print '%s%s:    %s' % (attr.upper(), ' ' * (25 - len(attr)), str(value))
 
     # fine-tune hyper-parameters
     while True:
 
         FLAGS.num_epochs = 300
         FLAGS.num_checkpoints = 50
-
-        # FLAGS.crf_lambda_doub = 10.0 ** np.random.randint(-2, 0)
-        # FLAGS.crf_lambda_cub = 10.0 ** np.random.randint(-3, -1)
-        # FLAGS.crf_lambda_quad = 10.0 ** np.random.randint(-3, -1)
-        # FLAGS.portion_threshold = [0.8, 0.85, 0.9, 0.95][np.random.randint(0, 4)]
-        # FLAGS.dropout_keep_prob = [0.2, 0.3, 0.4, 0.5, 0.6][np.random.randint(0, 5)]
-        # FLAGS.dense_size = [32, 64, 128][np.random.randint(0, 3)]
-        # FLAGS.num_filters = [32, 64, 128][np.random.randint(0, 3)]
 
         param_list = [['num_epochs', FLAGS.num_epochs],
                       ['crf_lambda_doub', FLAGS.crf_lambda_doub],

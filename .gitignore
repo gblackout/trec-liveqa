@@ -8,3 +8,15 @@ out/*
 saved_models/*
 
 pickerResult
+
+nih_data
+
+stpwd
+stpwd_bak
+trec_data
+type_data
+type_freq
+README.md
+jndata.json
+hypertnesion_med_list
+fields

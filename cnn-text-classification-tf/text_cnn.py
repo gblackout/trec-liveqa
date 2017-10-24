@@ -116,96 +116,19 @@ class TextCNN_V2(object):
 
             self.scores = tf.nn.xw_plus_b(dense_out, W, b, name="lin_transform")
 
-        # ======================================================================================================
-        #                                                CRF
-        # ======================================================================================================
-        with tf.name_scope("CRF"):
-            A = tf.Variable(tf.truncated_normal(shape=[num_classes, num_classes], stddev=0.1), name="A")
-            A_no_diag = A * self.doub_diag_mask
-
-            B = tf.Variable(tf.truncated_normal(shape=[num_classes, num_classes, num_classes], stddev=0.1), name="B")
-            B_no_diag = B * self.cub_diag_mask
-
-            C = tf.Variable(tf.truncated_normal(shape=[num_classes, num_classes,
-                                                       num_classes, num_classes], stddev=0.1),name="C")
-            C_no_diag = C * self.quad_diag_mask
-
-            # ================= potential for all possible y =================
-            # b X d * (k X d)^T = b X k
-            phi_dot_all_y = tf.matmul(self.scores, self.all_y, transpose_b=True, name='phi_dot_all_y')
-            doub_all_y = crf_lambda_doub * tf.reduce_sum(tf.matmul(self.all_y, A_no_diag) * self.all_y, axis=-1)  # k
-            cub_all_y = crf_lambda_cub * tf.reduce_sum(
-                                         tf.reduce_sum(
-                                         tf.tensordot(self.all_y, B_no_diag, ([1], [0])) *
-                                         tf.expand_dims(self.all_y, axis=-1),axis=-1) * self.all_y, axis=-1)
-            quad_all_y = crf_lambda_quad * tf.reduce_sum(
-                                           tf.reduce_sum(
-                                           tf.reduce_sum(
-                                           tf.tensordot(self.all_y, C_no_diag, ([1], [0])) *
-                                           tf.expand_dims(tf.expand_dims(self.all_y, axis=-1), axis=-1), axis=-1) *
-                                           tf.expand_dims(self.all_y, axis=-1), axis=-1) * self.all_y, axis=-1)
-
-            # ================= potential for y in the batch =================
-            phi_dot_train_y = tf.reduce_sum(self.scores * self.input_y, axis=-1, name='phi_dot_train_y')  # b
-            doub_train_y = crf_lambda_doub * tf.reduce_sum(tf.matmul(self.input_y, A_no_diag) * self.input_y, axis=-1)
-            cub_train_y = crf_lambda_cub * tf.reduce_sum(
-                                           tf.reduce_sum(
-                                           tf.tensordot(self.input_y, B_no_diag, ([1], [0])) *
-                                           tf.expand_dims(self.input_y, axis=-1), axis=-1) * self.input_y, axis=-1)
-            quad_train_y = crf_lambda_quad * tf.reduce_sum(
-                                             tf.reduce_sum(
-                                             tf.reduce_sum(
-                                             tf.tensordot(self.input_y, C_no_diag, ([1], [0])) *
-                                             tf.expand_dims(tf.expand_dims(self.input_y, axis=-1), axis=-1), axis=-1) *
-                                             tf.expand_dims(self.input_y, axis=-1), axis=-1) * self.input_y, axis=-1)
-
-            # ================= log parition function =================
-            all_multi_potential = tf.add(doub_all_y, tf.add(cub_all_y, quad_all_y), name='all_multi_potential')
-            all_loglikelihood = tf.add(phi_dot_all_y, all_multi_potential, name='all_loglikelihood')  # b X k
-            # the value of log(Z(phi_i)) as b-dim vector
-            log_Z = tf.reduce_logsumexp(all_loglikelihood, axis=-1, name='log_z')
-
-            # ================= log likelihood =================
-            train_multi_potential = tf.add(doub_train_y, tf.add(cub_train_y, quad_train_y),
-                                           name='train_multi_potential')
-            log_likelihood = tf.reduce_sum(phi_dot_train_y + train_multi_potential - log_Z,
-                                           axis=-1, name='log_likelihood')
-
-            self.unary_score = tf.reduce_sum(phi_dot_train_y - log_Z, axis=-1, name='unary_score')
-            self.binary_score = tf.reduce_sum(doub_train_y - log_Z, axis=-1, name='binary_score')
-            self.cubic_score = tf.reduce_sum(cub_train_y - log_Z, axis=-1, name='binary_score')
-            self.quad_score = tf.reduce_sum(quad_train_y - log_Z, axis=-1, name='binary_score')
-
         # Mean cross-entropy loss
         with tf.name_scope("loss"):
             losses = tf.nn.sigmoid_cross_entropy_with_logits(logits=self.scores, labels=self.input_y)
 
-            if use_crf:
-                self.obj_loss = - log_likelihood
-            else:
-                self.obj_loss = tf.reduce_mean(losses)
+            self.obj_loss = tf.reduce_mean(losses)
 
             self.l2_loss = l2_coef * self.l2_loss
             self.loss = self.l2_loss + self.obj_loss
 
         # mean accuracy
         with tf.name_scope("accuracy"):
-            if use_crf:
-                inds = tf.argmax(all_loglikelihood, axis=-1, name='inds')
-                inds = tf.cast(inds, tf.int32)
-                iter_ind = tf.constant(0)
-                preds = tf.constant([[-1.0] * num_classes])
 
-                c = lambda iter_ind, preds: iter_ind < tf.shape(self.input_x)[0]
-                b = lambda iter_ind, preds: [iter_ind + 1,
-                                             tf.concat([preds, tf.expand_dims(self.all_y[inds[iter_ind], :], axis=0)],
-                                                       axis=0)]
-                r = tf.while_loop(c, b, loop_vars=[iter_ind, preds],
-                                  shape_invariants=[iter_ind.get_shape(), tf.TensorShape([None, num_classes])])
-
-                self.raw_pred = r[1][1:, :]
-            else:
-                self.raw_pred = tf.nn.sigmoid(self.scores, name='no_round_preds')
+            self.raw_pred = tf.nn.sigmoid(self.scores, name='no_round_preds')
 
             self.pred = tf.round(self.raw_pred, name='prediction')
             self.correct_pred = tf.cast(tf.equal(self.pred, tf.round(self.input_y)), tf.float32)
